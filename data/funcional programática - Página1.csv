@@ -1,0 +1,7 @@
+Segmento,Posição (Início),Tamanho,Valor no Exemplo,O que significa?
+Institucional / Esfera,1,7 dígitos,1003101,"Estrutura local do Órgão, Unidade Orçamentária/Executora e (geralmente o último dígito) a Esfera (ex: 1 para Orçamento Fiscal)."
+Função,8,2 dígitos,1,Legislativa (Área de atuação típica de Câmaras ou Tribunais de Contas).
+Subfunção,10,3 dígitos,32,Controle Externo (Subfunção nacional tabelada que encaixa perfeitamente com a função 01).
+Programa,13,4 dígitos,2,Código do Programa de Governo vinculado.
+Ação,17,4 dígitos,2011,"Código do Projeto, Atividade ou Operação Especial. Ações iniciadas com 2 costumam representar ""Atividades"" de natureza contínua."
+Subtítulo/Localizador,21,4 dígitos,1,"Detalhamento final da ação, geralmente identificando a localização geográfica (Sede, Município, etc)."

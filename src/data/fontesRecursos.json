@@ -1,0 +1,20 @@
+{
+  "100000000": "Recursos Ordinários do Tesouro",
+  "100000001": "Recursos Ordinários do Tesouro - Principal",
+  "100320000": "Recursos Vinculados - Arrecadação Própria",
+  "150000000": "Recursos Não Vinculados de Impostos",
+  "150000001": "Recursos Não Vinculados de Impostos - Principal",
+  "150320000": "Recursos Não Vinculados de Impostos - Arrecadação Própria",
+  "155000000": "Transferências Constitucionais e Legais",
+  "155320000": "Transferências Constitucionais e Legais - Arrecadação Própria",
+  "160000000": "Transferências do FUNDEB 30%",
+  "181000000": "Outros Recursos Vinculados à Educação",
+  "182000000": "Outros Recursos Vinculados à Saúde",
+  "188000000": "Outros Recursos Vinculados",
+  "200000000": "Recursos de Operações de Crédito",
+  "250000000": "Transferências de Convênios",
+  "250000001": "Transferências de Convênios - Federal",
+  "300000000": "Recursos Próprios de Fundos Especiais",
+  "320000000": "Arrecadação Própria",
+  "500000000": "Recursos do Tesouro - Exercícios Anteriores"
+}

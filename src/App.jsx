@@ -6,6 +6,10 @@ import {
   FileSpreadsheet, FileJson
 } from 'lucide-react';
 
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
 const formatCurrency = (val) => {
   return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
@@ -47,15 +51,14 @@ export default function App() {
   const [ugFilter, setUgFilter] = useState('Todas');
   const [classificacaoFilter, setClassificacaoFilter] = useState('Todas');
 
-  // Estado de Expansão da Tabela Hierárquica (inicia recolhido)
+  // Estado de Expansão da Tabela Hierárquica
   const [expandedNodes, setExpandedNodes] = useState([]);
 
-
-  // --- Estados da Barra de Filtros ---
+  // Estados da Barra de Filtros
   const [anoFilter, setAnoFilter] = useState('2026');
   const [dataInicio, setDataInicio] = useState('2026-01-01');
   const [dataFim, setDataFim] = useState('2026-12-31');
-  const [palavraChaveText, setPalavraChaveText] = useState(''); // Novo estado unificado
+  const [palavraChaveText, setPalavraChaveText] = useState('');
 
   const showToast = (message) => {
     setToastMessage(message);
@@ -63,13 +66,14 @@ export default function App() {
   };
 
   // Mock Data Empenhos
- const mockEmpenhos = [
+  const mockEmpenhos = [
     {
       id: '2026NE000100',
       data: '12/01/2026',
       ug: '30101',
       classificacao: { categoriaId: '3', grupoId: '31', modalidadeId: '3190', elementoId: '319011' },
       credor: '00.000.000/0001-00',
+      cpfCnpj: '00.000.000/0001-00',
       funcao: '04 - Administração',
       fase: 'Pago',
       saldoStatus: 'positivo',
@@ -81,7 +85,7 @@ export default function App() {
       valores: { empenhado: '2.103.909,65', liquidado: '2.103.909,65', pago: '1.581.192,89', aPagar: '522.716,76' },
       programatica: {
         codigo: '04.122.0001.2.001.3.1.90.11.01.00',
-        unidade: '30101 - TRIBUNAL DE CONTAS', // Corrigido
+        unidade: '30101 - TRIBUNAL DE CONTAS',
         funcao: '04 - Administração',
         subfuncao: '122 - Administração Geral',
         programa: '0001 - GESTÃO ADMINISTRATIVA',
@@ -109,6 +113,7 @@ export default function App() {
       ug: '30101',
       classificacao: { categoriaId: '3', grupoId: '33', modalidadeId: '3390', elementoId: '339039' },
       credor: '38.972.498/0001-27',
+      cpfCnpj: '38.972.498/0001-27',
       funcao: '04 - Administração',
       fase: 'Empenhado',
       saldoStatus: 'positivo',
@@ -118,9 +123,9 @@ export default function App() {
       licitacaoModalidade: 'PREGÃO',
       procedimentoLicitatorio: 'Pregão Eletrônico Nº 12/2026',
       valores: { empenhado: '1.270,20', liquidado: '0,00', pago: '0,00', aPagar: '1.270,20' },
-     programatica: {
+      programatica: {
         codigo: '04.122.0001.2.001.3.3.90.39.00.00',
-        unidade: '30101 - TRIBUNAL DE CONTAS', // Corrigido
+        unidade: '30101 - TRIBUNAL DE CONTAS',
         funcao: '04 - Administração',
         subfuncao: '122 - Administração Geral',
         programa: '0001 - GESTÃO ADMINISTRATIVA',
@@ -144,6 +149,7 @@ export default function App() {
       ug: '30901',
       classificacao: { categoriaId: '3', grupoId: '33', modalidadeId: '3390', elementoId: '339030' },
       credor: '000.092.000-00',
+      cpfCnpj: '000.092.000-00',
       funcao: '04 - Administração',
       fase: 'Pago',
       saldoStatus: 'positivo',
@@ -155,7 +161,7 @@ export default function App() {
       valores: { empenhado: '1.621,00', liquidado: '1.621,00', pago: '1.621,00', aPagar: '0,00' },
       programatica: {
         codigo: '01.001.01.031.0001.2.001.3.3.90.30.00.00',
-        unidade: '30901 - FUNDO ESP DE DESENV MODERN E APERF DO TC MS', // Corrigido nome completo
+        unidade: '30901 - FUNDO ESP DE DESENV MODERN E APERF DO TC MS',
         funcao: '04 - Administração',
         subfuncao: '122 - Administração Geral',
         programa: '0001 - PROCESSO LEGISLATIVO',
@@ -183,6 +189,7 @@ export default function App() {
       ug: '30101',
       classificacao: { categoriaId: '3', grupoId: '33', modalidadeId: '3390', elementoId: '339040' },
       credor: 'Distribuidora Nacional',
+      cpfCnpj: '01.234.567/0001-89',
       funcao: '04 - Administração',
       fase: 'Empenhado',
       saldoStatus: 'positivo',
@@ -194,7 +201,7 @@ export default function App() {
       valores: { empenhado: '3.500,00', liquidado: '0,00', pago: '0,00', aPagar: '3.500,00' },
       programatica: {
         codigo: '04.122.0001.2.001.3.3.90.40.00.00',
-        unidade: '30101 - TRIBUNAL DE CONTAS', // Corrigido
+        unidade: '30101 - TRIBUNAL DE CONTAS',
         funcao: '04 - Administração',
         subfuncao: '122 - Administração Geral',
         programa: '0001 - GESTÃO ADMINISTRATIVA',
@@ -215,8 +222,7 @@ export default function App() {
     }
   ];
 
-
-  // ── Dados reais via hook (lê os CSVs de /public/data) ─────────────────
+  // Hook Data
   const {
     empenhos: empenhosReais,
     classificacaoHierarquica,
@@ -226,36 +232,9 @@ export default function App() {
     error: dadosError,
   } = useEmpenhos();
 
-  // Fonte de dados: se tiver dados reais do hook, use-os; senão, mock.
   const mockAnulacao = mockEmpenhos.find(e => e.id === '2026NE000405');
-  const empenhosToUse = empenhosReais.length > 0 ? [mockAnulacao, ...empenhosReais] : mockEmpenhos;
+  const empenhosToUse = empenhosReais && empenhosReais.length > 0 ? [mockAnulacao, ...empenhosReais] : mockEmpenhos;
 
-  // -- Opções do filtro baseadas na carga de dados atual --
-  const optionsCategoria = useMemo(() => {
-    const s = new Set();
-    empenhosToUse.forEach(e => {
-      if (e.programatica?.categoria && e.classificacao?.categoriaId) s.add(e.programatica.categoria);
-    });
-    return ["Todas", ...Array.from(s).sort()];
-  }, [empenhosToUse]);
-
-  const optionsGrupo = useMemo(() => {
-    const s = new Set();
-    empenhosToUse.forEach(e => {
-      if (e.programatica?.gnd && e.classificacao?.grupoId) s.add(e.programatica.gnd);
-    });
-    return ["Todas", ...Array.from(s).sort()];
-  }, [empenhosToUse]);
-
-  const optionsElemento = useMemo(() => {
-    const s = new Set();
-    empenhosToUse.forEach(e => {
-      if (e.programatica?.elemento && e.classificacao?.elementoId) s.add(e.programatica.elemento);
-    });
-    return ["Todas", ...Array.from(s).sort()];
-  }, [empenhosToUse]);
-
-  // Classificação hierárquica: dados reais quando disponíveis, fallback estático
   const hierarchicalClassification = classificacaoHierarquica?.length > 0
     ? classificacaoHierarquica
     : [
@@ -307,7 +286,6 @@ export default function App() {
     }
   ];
 
-  // Função para planificar a árvore de acordo com os nós expandidos
   const flattenTree = (nodes, expandedIds, depth = 0) => {
     let result = [];
     nodes.forEach(node => {
@@ -319,10 +297,7 @@ export default function App() {
     return result;
   };
 
-
-  // Filtra a tabela de empenhos combinando TODOS os filtros
   const filteredEmpenhos = empenhosToUse.filter(emp => {
-    // Filtros de KPIs, Tabelas e Drill-down
     const matchFase = (() => {
       if (kpiFilter === 'Todas' || kpiFilter === 'Empenhado') return true;
       if (kpiFilter === 'Liquidado') return emp.liquidacoes && emp.liquidacoes.length > 0;
@@ -338,34 +313,62 @@ export default function App() {
       emp.classificacao?.elementoId   === classificacaoFilter
     );
 
-    // Filtros da Barra Lateral: Período
     const empDateParts = emp.data.split('/');
     const empDate = new Date(`${empDateParts[2]}-${empDateParts[1]}-${empDateParts[0]}T00:00:00`);
     const start = new Date(`${dataInicio}T00:00:00`);
     const end = new Date(`${dataFim}T23:59:59`);
     const matchDate = empDate >= start && empDate <= end;
 
-    // Filtro unificado de Palavra-Chave
+    // MOTOR DE BUSCA TURBINADO:
     const termo = palavraChaveText.toLowerCase();
-    const matchPalavraChave = termo === '' || 
-      (emp.objeto && emp.objeto.toLowerCase().includes(termo)) || 
-      (emp.credor && emp.credor.toLowerCase().includes(termo)) || 
-      (emp.id && emp.id.toLowerCase().includes(termo));
+    
+    // 1. Função que varre qualquer array de sub-itens (liquidações, pagamentos, etc)
+    const buscaNasFases = (fases) => {
+      if (!fases) return false;
+      return fases.some(f => 
+        (f.documento && String(f.documento).toLowerCase().includes(termo)) ||
+        (f.historico && String(f.historico).toLowerCase().includes(termo)) ||
+        (f.cpfCnpj && String(f.cpfCnpj).toLowerCase().includes(termo)) ||
+        (f.favorecido && String(f.favorecido).toLowerCase().includes(termo))
+      );
+    };
+
+    // 2. Compara com os dados do nó principal e também dentro das gavetas
+    const matchPalavraChave = termo === '' || [
+      emp.id,
+      emp.objeto,
+      emp.credor,
+      emp.cpfCnpj,
+      emp.processo,
+      emp.licitacaoModalidade,
+      emp.procedimentoLicitatorio,
+      emp.programatica?.codigo,
+      emp.programatica?.unidade,
+      emp.programatica?.funcao,
+      emp.programatica?.subfuncao,
+      emp.programatica?.programa,
+      emp.programatica?.projetoAtividade,
+      emp.programatica?.fonte,
+      emp.programatica?.categoria,
+      emp.programatica?.gnd,
+      emp.programatica?.modalidade,
+      emp.programatica?.elemento,
+      emp.programatica?.itemDespesa
+    ].some(field => field && String(field).toLowerCase().includes(termo)) || 
+    buscaNasFases(emp.empenhos) || 
+    buscaNasFases(emp.liquidacoes) || 
+    buscaNasFases(emp.pagamentos);
 
     return matchFase && matchUg && matchClassificacao && matchDate && matchPalavraChave;
   });
 
-  // --- INÍCIO DA LÓGICA DA ÁRVORE DINÂMICA ---
-  // 1. Pega a base da classificação
   const baseClassification = classificacaoHierarquica?.length > 0 
     ? classificacaoHierarquica 
     : hierarchicalClassification;
 
-  // 2. Reconstrói os totais da árvore com base nos empenhos filtrados (filteredEmpenhos)
   const dynamicClassification = useMemo(() => {
     const updateNodeValues = (nodes) => {
       return nodes.map(node => {
-        // Filtra os empenhos que pertencem a este nó específico (seja Categoria, Grupo, etc.)
         const empenhosDoNo = filteredEmpenhos.filter(emp => 
           emp.classificacao?.categoriaId === node.id ||
           emp.classificacao?.grupoId === node.id ||
@@ -373,7 +376,6 @@ export default function App() {
           emp.classificacao?.elementoId === node.id
         );
 
-        // Soma os novos valores apenas do que foi filtrado para ESTE nível
         const novosValores = empenhosDoNo.reduce((acc, emp) => {
           const parse = (v) => typeof v === 'string' ? parseFloat(v.replace(/[^\d,-]/g, '').replace(',', '.')) : v;
           acc.empenhado += parse(emp.valores.empenhado || 0);
@@ -382,26 +384,17 @@ export default function App() {
           return acc;
         }, { empenhado: 0, liquidado: 0, pago: 0 });
 
-        // Processa os filhos recursivamente para que eles calculem seus próprios totais
         const children = node.children ? updateNodeValues(node.children) : null;
-
-        // RETIRADA A DUPLA CONTAGEM: Não somamos mais o 'children' aqui, 
-        // pois o reduce acima já pegou todos os empenhos deste nível!
-
         return { ...node, valores: novosValores, children };
       });
     };
-
     return updateNodeValues(baseClassification);
   }, [baseClassification, filteredEmpenhos]);
-  // 3. Tabela usa a árvore dinâmica
+
   const flattenedClassification = useMemo(() => {
     return flattenTree(dynamicClassification, expandedNodes);
   }, [dynamicClassification, expandedNodes]);
-  // --- FIM DA LÓGICA DA ÁRVORE DINÂMICA ---
 
-
-  // Sempre reiniciar a página quando qualquer filtro alterar
   useEffect(() => {
     setCurrentPage(1);
   }, [kpiFilter, ugFilter, classificacaoFilter, anoFilter, dataInicio, dataFim, palavraChaveText]);
@@ -411,7 +404,6 @@ export default function App() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedEmpenhos = filteredEmpenhos.slice(startIndex, startIndex + itemsPerPage);
 
-  // Função auxiliar para buscar totais do nó selecionado na árvore
   const findNodeInTree = (nodes, id) => {
     for (let node of nodes) {
       if (node.id === id) return node;
@@ -423,7 +415,6 @@ export default function App() {
     return null;
   };
 
-  // Totais para KPIs: de dados reais quando disponíveis
   const totaisPorUG = useMemo(() => {
     if (totaisPorUGReais && Object.keys(totaisPorUGReais).length > 0) {
       return {
@@ -432,7 +423,7 @@ export default function App() {
       };
     }
     return {
-      'Todas': { empenhado: totaisGlobais.empenhado, liquidado: totaisGlobais.liquidado, pago: totaisGlobais.pago },
+      'Todas': { empenhado: totaisGlobais?.empenhado || 0, liquidado: totaisGlobais?.liquidado || 0, pago: totaisGlobais?.pago || 0 },
     };
   }, [totaisPorUGReais, totaisGlobais]);
 
@@ -459,36 +450,25 @@ export default function App() {
   };
 
   const handleLimparFiltros = () => {
-    // Reseta filtros globais
     setKpiFilter('Todas');
     setUgFilter('Todas');
     setClassificacaoFilter('Todas');
-
-    // Reseta filtros da barra lateral
     setAnoFilter('2026');
     setDataInicio('2026-01-01');
     setDataFim('2026-12-31');
-    setPalavraChaveText(''); // Apenas o nosso novo estado unificado!
-
+    setPalavraChaveText('');
     showToast('Todos os filtros foram limpos.');
   };
 
-  const handleRowClick = (item) => {
-    // Toggle de expansão do accordion
-    if (expandedNodes.includes(item.id)) {
-      setExpandedNodes(expandedNodes.filter(id => id !== item.id));
-    } else {
-      setExpandedNodes([...expandedNodes, item.id]);
+  const handleRowClick = (node) => {
+    if (node.children) {
+      setExpandedNodes(prev => prev.includes(node.id) ? prev.filter(id => id !== node.id) : [...prev, node.id]);
     }
-
-    // Aplica o filtro selecionado (ou desmarca se já estava selecionado)
-    setClassificacaoFilter(classificacaoFilter === item.id ? 'Todas' : item.id);
+    setClassificacaoFilter(prev => prev === node.id ? 'Todas' : node.id);
   };
 
-  const renderTabelaFase = (titulo, dados, extraClass = "mb-12 last:mb-0") => {
-    if (!dados || dados.length === 0) return null;
-    const total = dados.reduce((acc, curr) => acc + curr.valor, 0);
-
+  const renderTabelaFase = (titulo, dados, extraClass = "") => {
+    const total = dados.reduce((acc, curr) => acc + (typeof curr.valor === 'number' ? curr.valor : parseFloat(curr.valor.toString().replace(/\./g, '').replace(',', '.'))), 0);
     return (
       <div className={extraClass}>
         {titulo && <h3 className="text-2xl font-bold text-slate-500 mb-6">{titulo}</h3>}
@@ -511,7 +491,7 @@ export default function App() {
                   <td className="py-4 pr-4">{linha.documento}</td>
                   <td className="py-4 pr-4">{linha.cpfCnpj || '-'}</td>
                   <td className="py-4 pr-4 max-w-[150px] truncate" title={linha.favorecido}>{linha.favorecido}</td>
-                  <td className="py-4 pr-4 max-w-[200px] xl:max-w-[300px] truncate leading-tight" title={linha.historico}>{linha.historico}</td>
+                  <td className="py-4 pr-4 max-w-[200px] xl:max-w-[300px] truncate leading-tight" title={linha.historico}>{linha.historico || '-'}</td>
                   <td className="py-4">
                     <div className="flex justify-between w-full gap-4">
                       <span>R$</span>
@@ -561,17 +541,6 @@ export default function App() {
     </div>
   );
 
-  // Relaciona a seleção do combo de Unidade Gestora com o filtro global
-  const ugOptions = ["Todas", "30101 - TRIBUNAL DE CONTAS", "30901 - FUNDO ESP DE DESENV MODERN E APERF DO TC MS"];
-  const ugSelectValue = ugFilter === '30101' ? ugOptions[1] : ugFilter === '30901' ? ugOptions[2] : ugOptions[0];
-  const handleUgChange = (e) => {
-    const val = e.target.value;
-    if (val.startsWith('30101')) setUgFilter('30101');
-    else if (val.startsWith('30901')) setUgFilter('30901');
-    else setUgFilter('Todas');
-  };
-
-  // Verifica se a data compreende exatamente o início e o fim de um ano
   const syncAnoIfStandard = (startStr, endStr) => {
     if (!startStr || !endStr) return;
     const sYear = startStr.substring(0, 4);
@@ -595,7 +564,6 @@ export default function App() {
     syncAnoIfStandard(dataInicio, val);
   };
 
-  // Atualiza o período (data início e data fim) automaticamente ao mudar o ano pelo dropdown
   const handleAnoChange = (e) => {
     const selectedYear = e.target.value;
     setAnoFilter(selectedYear);
@@ -603,14 +571,217 @@ export default function App() {
     setDataFim(`${selectedYear}-12-31`);
   };
 
-  // Lógica de visibilidade do campo Ano: só exibe se o período for 01/01 a 31/12 de um mesmo ano
   const startYear = dataInicio ? dataInicio.substring(0, 4) : '';
   const endYear = dataFim ? dataFim.substring(0, 4) : '';
   const isStandardYear = dataInicio === `${startYear}-01-01` && dataFim === `${startYear}-12-31` && startYear === endYear;
 
+  // --- INÍCIO DAS FUNÇÕES DE EXPORTAÇÃO ---
+  const exportParseCurrency = (val) => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    return parseFloat(val.toString().replace(/[^\d,-]/g, '').replace(',', '.'));
+  };
+
+  const loadLogo = (url) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = url;
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+    });
+  };
+
+  const handleExportExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    let ugLabel = "Todas";
+    if (ugFilter === '30101') ugLabel = "30101 - TRIBUNAL DE CONTAS";
+    if (ugFilter === '30901') ugLabel = "30901 - FUNDO ESP DE DESENV MODERN E APERF DO TC MS";
+
+    let classLabel = "Todas";
+    if (classificacaoFilter !== 'Todas' && activeClassNode) {
+      classLabel = `${activeClassNode.codigo} - ${activeClassNode.descricao}`;
+    }
+
+    const palavraChaveLabel = palavraChaveText ? palavraChaveText : "Nenhuma";
+
+    const resumoData = [
+      ["TRIBUNAL DE CONTAS DO ESTADO DE MATO GROSSO DO SUL"],
+      ["Relatório de Execução Orçamentária"],
+      [`Período: ${dataInicio.split('-').reverse().join('/')} a ${dataFim.split('-').reverse().join('/')} | Ano: ${anoFilter}`],
+      [`Filtros Ativos: UO: ${ugLabel} | Classificação: ${classLabel} | Busca: ${palavraChaveLabel}`],
+      [],
+      ["RESUMO POR UNIDADE ORÇAMENTÁRIA"],
+      ["Código", "Unidade Orçamentária", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"],
+      ...Object.keys(totaisPorUG).filter(ug => ug !== 'Todas').map(ug => [
+        ug, ug === '30101' ? 'TRIBUNAL DE CONTAS' : 'FUNDO ESP DE DESENV MODERN E APERF DO TC MS', 
+        exportParseCurrency(totaisPorUG[ug].empenhado), exportParseCurrency(totaisPorUG[ug].liquidado), exportParseCurrency(totaisPorUG[ug].pago)
+      ]),
+      [],
+      ["CLASSIFICAÇÃO ORÇAMENTÁRIA - NÍVEIS DE DESPESA"],
+      ["Código", "Descrição", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"],
+      ...flattenedClassification.map(c => [
+        c.id, `${c.nivel}: ${c.descricao}`, 
+        exportParseCurrency(c.valores.empenhado), exportParseCurrency(c.valores.liquidado), exportParseCurrency(c.valores.pago)
+      ])
+    ];
+    
+    const ws1 = XLSX.utils.aoa_to_sheet(resumoData);
+    XLSX.utils.book_append_sheet(wb, ws1, "Resumo Orçamentário");
+
+    const empenhosData = [
+      ["LISTAGEM DETALHADA DE EMPENHOS"],
+      ["Nº Empenho", "Data", "Favorecido", "Finalidade", "Valor (R$)"],
+      ...filteredEmpenhos.map(e => [
+        e.id, e.data, e.credor, e.objeto, exportParseCurrency(e.valor)
+      ])
+    ];
+    
+    const ws2 = XLSX.utils.aoa_to_sheet(empenhosData);
+    XLSX.utils.book_append_sheet(wb, ws2, "Listagem de Empenhos");
+
+    XLSX.writeFile(wb, "Relatorio_Execucao_Orcamentaria_TCEMS.xlsx");
+    showToast('Download do Excel concluído!');
+  };
+
+  const handleExportPDF = async () => {
+    showToast('Preparando PDF, aguarde...');
+    
+    const doc = new jsPDF('l', 'pt', 'a4');
+
+    let ugLabel = "Todas";
+    if (ugFilter === '30101') ugLabel = "30101 - TRIBUNAL DE CONTAS";
+    if (ugFilter === '30901') ugLabel = "30901 - FUNDO ESP DE DESENV MODERN E APERF DO TC MS";
+
+    let classLabel = "Todas";
+    if (classificacaoFilter !== 'Todas' && activeClassNode) {
+      classLabel = `${activeClassNode.codigo} - ${activeClassNode.descricao}`;
+    }
+
+    const palavraChaveLabel = palavraChaveText ? palavraChaveText : "Nenhuma";
+    const pageData1 = `Período: ${dataInicio.split('-').reverse().join('/')} a ${dataFim.split('-').reverse().join('/')} | Ano: ${anoFilter}`;
+    const pageData2 = `Filtros Ativos -> UO: ${ugLabel} | Classificação: ${classLabel} | Busca: ${palavraChaveLabel}`;
+    
+    const logoImg = await loadLogo('/logo.png');
+    let textStartX = 40; 
+
+    if (logoImg) {
+      const imgHeight = 35;
+      const imgWidth = imgHeight * (logoImg.width / logoImg.height);
+      doc.addImage(logoImg, 'PNG', 40, 30, imgWidth, imgHeight); 
+      textStartX = 40 + imgWidth + 20; 
+    } else {
+      doc.setFontSize(16);
+      doc.setTextColor(0, 123, 158);
+      doc.text("TCE / MS", 40, 50);
+      textStartX = 130;
+    }
+
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text("Relatório de Execução Orçamentária", textStartX, 45); 
+    
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(pageData1, textStartX, 60);
+
+    doc.setFontSize(8);
+    doc.setTextColor(0, 123, 158);
+    doc.text(pageData2, textStartX, 72);
+
+    const ugsData = Object.keys(totaisPorUG).filter(ug => ug !== 'Todas').map(ug => [
+      ug, ug === '30101' ? 'TRIBUNAL DE CONTAS' : 'FUNDO ESP DE DESENV MODERN E APERF DO TC MS', 
+      exportParseCurrency(totaisPorUG[ug].empenhado).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), 
+      exportParseCurrency(totaisPorUG[ug].liquidado).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), 
+      exportParseCurrency(totaisPorUG[ug].pago).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    ]);
+
+    if (totaisPorUG['Todas']) {
+      ugsData.push([
+        '', 
+        'TOTAL', 
+        exportParseCurrency(totaisPorUG['Todas'].empenhado).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), 
+        exportParseCurrency(totaisPorUG['Todas'].liquidado).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), 
+        exportParseCurrency(totaisPorUG['Todas'].pago).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: 105, 
+      headStyles: { fillColor: [0, 123, 158] },
+      styles: { fontSize: 8 },
+      columnStyles: {
+        2: { halign: 'right' },
+        3: { halign: 'right' },
+        4: { halign: 'right' }
+      },
+      willDrawCell: function(data) {
+        if (data.row.index === ugsData.length - 1 && data.section === 'body') {
+          doc.setFont(undefined, 'bold');
+        }
+      },
+      head: [['Código', 'Unidade Orçamentária', 'Empenhado', 'Liquidado', 'Pago']],
+      body: ugsData,
+    });
+
+    const finalY1 = doc.lastAutoTable.finalY || 150;
+
+    autoTable(doc, {
+      startY: finalY1 + 20,
+      headStyles: { fillColor: [0, 123, 158] },
+      styles: { fontSize: 8 },
+      columnStyles: {
+        2: { halign: 'right' },
+        3: { halign: 'right' },
+        4: { halign: 'right' }
+      },
+      head: [['Código', 'Descrição / Nível', 'Empenhado', 'Liquidado', 'Pago']],
+      body: flattenedClassification.map(c => [
+        c.id, `${c.nivel}: ${c.descricao}`, 
+        exportParseCurrency(c.valores.empenhado).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), 
+        exportParseCurrency(c.valores.liquidado).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), 
+        exportParseCurrency(c.valores.pago).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+      ]),
+    });
+
+    const finalY2 = doc.lastAutoTable.finalY || 200;
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 123, 158);
+    doc.setFont(undefined, 'bold');
+    doc.text("Listagem Detalhada de Empenhos", 40, finalY2 + 30);
+    
+    autoTable(doc, {
+      startY: finalY2 + 40,
+      headStyles: { fillColor: [0, 123, 158] },
+      styles: { fontSize: 8 },
+      columnStyles: {
+        3: { cellWidth: 250 },
+        4: { halign: 'right' }, 
+        5: { halign: 'right' }, 
+        6: { halign: 'right' }, 
+        7: { halign: 'right' }
+      },
+      head: [['Empenho', 'Data', 'Fornecedor', 'Histórico', 'Empenhado', 'Liquidado', 'Pago', 'A Pagar']],
+      body: filteredEmpenhos.map(e => [
+        e.id, 
+        e.data, 
+        e.credor, 
+        e.objeto, 
+        e.valores.empenhado, 
+        e.valores.liquidado, 
+        e.valores.pago, 
+        e.valores.aPagar
+      ]),
+    });
+
+    doc.save("Relatorio_Execucao_Orcamentaria_TCEMS.pdf");
+    showToast('Download do PDF concluído!');
+  };
+  // --- FIM DAS FUNÇÕES DE EXPORTAÇÃO ---
+
   return (
     <div className="min-h-screen bg-white text-slate-800 font-sans">
-
       {/* Header Institucional Global */}
       <header className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
@@ -634,12 +805,9 @@ export default function App() {
 
       {/* Content Area */}
       <main className="max-w-[1400px] mx-auto p-4 py-8">
-
         {/* --- DASHBOARD --- */}
         {currentView === 'dashboard' && (
           <div className="space-y-8">
-
-            {/* Título e Navegação iguais à imagem */}
             <div className="mb-4">
               <div className="text-sm text-slate-500 mb-2">Home / Despesas</div>
               <h2 className="text-4xl font-medium text-[#007B9E] border-b-[3px] border-[#007B9E] pb-2 inline-block w-full">
@@ -651,157 +819,133 @@ export default function App() {
             </div>
 
             <div className="flex flex-col lg:flex-row gap-8">
+              <div className="w-full lg:w-1/5 flex-shrink-0">
+                <nav className="bg-white rounded border border-slate-200 shadow-sm sticky top-24 overflow-hidden">
+                  <ul className="py-2">
+                    <li>
+                      <button className="w-full text-left px-6 py-3 text-sm font-medium text-[#007B9E] bg-[#E0F4F8] border-l-4 border-[#007B9E]">
+                        Empenhos, Liquidações e Pagamentos
+                      </button>
+                    </li>
+                    <li>
+                      <button className="w-full text-left px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 hover:text-[#007B9E] transition-colors">
+                        Ordem Cronológica de Pagamentos
+                      </button>
+                    </li>
+                    <li className="mt-1">
+                      <button 
+                        onClick={() => setIsDiariasExpanded(!isDiariasExpanded)}
+                        className="w-full flex items-center justify-between px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                      >
+                        Diárias
+                        <ChevronRight size={16} className={`text-slate-400 transition-transform ${isDiariasExpanded ? 'rotate-90' : ''}`} />
+                      </button>
+                      {isDiariasExpanded && (
+                        <ul className="pl-10 pr-4 pb-2 space-y-2 animate-in fade-in slide-in-from-top-1">
+                          <li>
+                            <button className="text-xs text-slate-500 hover:text-[#007B9E] transition-colors">
+                              Informações
+                            </button>
+                          </li>
+                          <li>
+                            <button className="text-xs text-slate-500 hover:text-[#007B9E] transition-colors">
+                              Tabela de Valores
+                            </button>
+                          </li>
+                        </ul>
+                      )}
+                    </li>
+                    <li>
+                      <button className="w-full text-left px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors border-t border-slate-50">
+                        Transferências Voluntárias Realizadas
+                      </button>
+                    </li>
+                    <li className="border-t border-slate-50">
+                      <button 
+                        onClick={() => setIsRelatoriosExpanded(!isRelatoriosExpanded)}
+                        className="w-full flex items-center justify-between px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                      >
+                        Relatórios Fiscais
+                        <ChevronRight size={16} className={`text-slate-400 transition-transform ${isRelatoriosExpanded ? 'rotate-90' : ''}`} />
+                      </button>
+                      {isRelatoriosExpanded && (
+                        <ul className="pl-10 pr-4 pb-3 space-y-2 animate-in fade-in slide-in-from-top-1">
+                          <li>
+                            <button className="text-xs text-slate-500 hover:text-[#007B9E] text-left leading-tight transition-colors">
+                              Relatório de Gestão Fiscal - RGF
+                            </button>
+                          </li>
+                          <li>
+                            <button className="text-xs text-slate-500 hover:text-[#007B9E] text-left leading-tight transition-colors">
+                              Relatório Resumido da Execução Orçamentária
+                            </button>
+                          </li>
+                        </ul>
+                      )}
+                    </li>
+                  </ul>
+                </nav>
+              </div>
 
-           {/* Barra Lateral: Menu de Navegação Ajustado */}
-            <div className="w-full lg:w-1/5 flex-shrink-0">
-              <nav className="bg-white rounded border border-slate-200 shadow-sm sticky top-24 overflow-hidden">
-                <ul className="py-2">
-                  <li>
-                    <button className="w-full text-left px-6 py-3 text-sm font-medium text-[#007B9E] bg-[#E0F4F8] border-l-4 border-[#007B9E]">
-                      Empenhos, Liquidações e Pagamentos
-                    </button>
-                  </li>
-                  <li>
-                    <button className="w-full text-left px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 hover:text-[#007B9E] transition-colors">
-                      Ordem Cronológica de Pagamentos
-                    </button>
-                  </li>
-                  
-                  {/* Menu Diárias com Toggle e Ícone */}
-                  <li className="mt-1">
-                    <button 
-                      onClick={() => setIsDiariasExpanded(!isDiariasExpanded)}
-                      className="w-full flex items-center justify-between px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
-                    >
-                      Diárias
-                      <ChevronRight size={16} className={`text-slate-400 transition-transform ${isDiariasExpanded ? 'rotate-90' : ''}`} />
-                    </button>
-                    {isDiariasExpanded && (
-                      <ul className="pl-10 pr-4 pb-2 space-y-2 animate-in fade-in slide-in-from-top-1">
-                        <li>
-                          <button className="text-xs text-slate-500 hover:text-[#007B9E] transition-colors">
-                            Informações
-                          </button>
-                        </li>
-                        <li>
-                          <button className="text-xs text-slate-500 hover:text-[#007B9E] transition-colors">
-                            Tabela de Valores
-                          </button>
-                        </li>
-                      </ul>
+              <div className="w-full lg:w-4/5 space-y-6">
+                {/* Barra de Filtros Horizontal */}
+                <div className="bg-white p-4 rounded border border-slate-200 shadow-sm mb-6">
+                  <div className="flex items-center gap-2 mb-3 text-[#007B9E] font-bold text-xs uppercase tracking-wider">
+                    <Filter size={14} /> Filtros de Pesquisa
+                  </div>
+                  <div className="flex flex-col lg:flex-row items-end gap-4">
+                    {isStandardYear && (
+                      <div className="w-full lg:w-32 flex-shrink-0">
+                        <FilterInput label="Ano" type="select" options={["2026", "2025", "2024", "2023", "2022"]} value={anoFilter} onChange={handleAnoChange} />
+                      </div>
                     )}
-                  </li>
+                    <div className="w-full lg:w-64 flex-shrink-0 relative border border-slate-300 rounded pt-3 pb-2 px-2 bg-white focus-within:border-[#0097B2] focus-within:ring-1 focus-within:ring-[#0097B2] transition-colors">
+                      <label className="absolute -top-2.5 left-2 bg-white px-1 text-[10px] text-slate-500 font-medium">Período (DD/MM/AAAA)</label>
+                      <div className="flex items-center gap-1">
+                        <div className="relative w-full flex items-center">
+                          <span className="absolute left-0 pointer-events-none text-xs text-slate-700">
+                            {dataInicio ? dataInicio.split('-').reverse().join('/') : ''}
+                          </span>
+                          <input 
+                            type="date" 
+                            value={dataInicio} 
+                            onChange={handleDataInicioChange} 
+                            className="w-full text-xs text-transparent outline-none bg-transparent z-10 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+                          />
+                        </div>
+                        <span className="text-slate-400">-</span>
+                        <div className="relative w-full flex items-center">
+                          <span className="absolute left-0 pointer-events-none text-xs text-slate-700">
+                            {dataFim ? dataFim.split('-').reverse().join('/') : ''}
+                          </span>
+                          <input 
+                            type="date" 
+                            value={dataFim} 
+                            onChange={handleDataFimChange} 
+                            className="w-full text-xs text-transparent outline-none bg-transparent z-10 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-full flex-grow">
+                      <FilterInput 
+                        label="Palavra-Chave do Empenho" 
+                        placeholder="Busque por qualquer dado do empenho." 
+                        value={palavraChaveText} 
+                        onChange={e => setPalavraChaveText(e.target.value)} 
+                      />
+                    </div>
+                    <div className="w-full lg:w-auto flex justify-end gap-2 flex-shrink-0">
+                      <button onClick={handleLimparFiltros} className="flex items-center justify-center gap-2 px-4 py-[9px] text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-300 rounded transition-colors shadow-sm">
+                        <X size={14} /> Limpar
+                      </button>
+                      <button onClick={() => showToast('Pesquisa atualizada!')} className="flex items-center justify-center gap-2 bg-[#0097B2] hover:bg-[#007B9E] text-white px-5 py-[9px] rounded text-xs font-bold transition-colors shadow-sm border border-transparent">
+                        <Search size={14} /> Aplicar Filtro
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
-                  <li>
-                    <button className="w-full text-left px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors border-t border-slate-50">
-                      Transferências Voluntárias Realizadas
-                    </button>
-                  </li>
-
-                  {/* Menu Relatórios Fiscais com Toggle e Ícone */}
-                  <li className="border-t border-slate-50">
-                    <button 
-                      onClick={() => setIsRelatoriosExpanded(!isRelatoriosExpanded)}
-                      className="w-full flex items-center justify-between px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
-                    >
-                      Relatórios Fiscais
-                      <ChevronRight size={16} className={`text-slate-400 transition-transform ${isRelatoriosExpanded ? 'rotate-90' : ''}`} />
-                    </button>
-                    {isRelatoriosExpanded && (
-                      <ul className="pl-10 pr-4 pb-3 space-y-2 animate-in fade-in slide-in-from-top-1">
-                        <li>
-                          <button className="text-xs text-slate-500 hover:text-[#007B9E] text-left leading-tight transition-colors">
-                            Relatório de Gestão Fiscal - RGF
-                          </button>
-                        </li>
-                        <li>
-                          <button className="text-xs text-slate-500 hover:text-[#007B9E] text-left leading-tight transition-colors">
-                            Relatório Resumido da Execução Orçamentária
-                          </button>
-                        </li>
-                      </ul>
-                    )}
-                  </li>
-                </ul>
-              </nav>
-            </div>
-             {/* Conteúdo Principal */}
-<div className="w-full lg:w-4/5 space-y-6">
-
-{/* Barra de Filtros Horizontal - Atualizada com Novo Placeholder e Formato */}
-  <div className="bg-white p-4 rounded border border-slate-200 shadow-sm mb-6">
-    <div className="flex items-center gap-2 mb-3 text-[#007B9E] font-bold text-xs uppercase tracking-wider">
-      <Filter size={14} /> Filtros de Pesquisa
-    </div>
-    
-    <div className="flex flex-col lg:flex-row items-end gap-4">
-      
-      {isStandardYear && (
-        <div className="w-full lg:w-32 flex-shrink-0">
-          <FilterInput label="Ano" type="select" options={["2026", "2025", "2024", "2023", "2022"]} value={anoFilter} onChange={handleAnoChange} />
-        </div>
-      )}
-      
-      {/* Filtro de Período com formato forçado para DD/MM/AAAA */}
-      <div className="w-full lg:w-64 flex-shrink-0 relative border border-slate-300 rounded pt-3 pb-2 px-2 bg-white focus-within:border-[#0097B2] focus-within:ring-1 focus-within:ring-[#0097B2] transition-colors">
-        <label className="absolute -top-2.5 left-2 bg-white px-1 text-[10px] text-slate-500 font-medium">Período (DD/MM/AAAA)</label>
-        <div className="flex items-center gap-1">
-          
-          {/* Data Início */}
-          <div className="relative w-full flex items-center">
-            {/* Texto forçado no formato BR */}
-            <span className="absolute left-0 pointer-events-none text-xs text-slate-700">
-              {dataInicio ? dataInicio.split('-').reverse().join('/') : ''}
-            </span>
-            {/* Input nativo com texto transparente */}
-            <input 
-              type="date" 
-              value={dataInicio} 
-              onChange={handleDataInicioChange} 
-              className="w-full text-xs text-transparent outline-none bg-transparent z-10 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
-            />
-          </div>
-
-          <span className="text-slate-400">-</span>
-          
-          {/* Data Fim */}
-          <div className="relative w-full flex items-center">
-            {/* Texto forçado no formato BR */}
-            <span className="absolute left-0 pointer-events-none text-xs text-slate-700">
-              {dataFim ? dataFim.split('-').reverse().join('/') : ''}
-            </span>
-            {/* Input nativo com texto transparente */}
-            <input 
-              type="date" 
-              value={dataFim} 
-              onChange={handleDataFimChange} 
-              className="w-full text-xs text-transparent outline-none bg-transparent z-10 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
-            />
-          </div>
-
-        </div>
-      </div>
-
-      {/* Campo Palavra-Chave com Novo Placeholder solicitado */}
-      <div className="w-full flex-grow">
-        <FilterInput 
-          label="Palavra-Chave" 
-          placeholder="Busque por qualquer dado do empenho." 
-          value={palavraChaveText} 
-          onChange={e => setPalavraChaveText(e.target.value)} 
-        />
-      </div>
-
-      <div className="w-full lg:w-auto flex justify-end gap-2 flex-shrink-0">
-        <button onClick={handleLimparFiltros} className="flex items-center justify-center gap-2 px-4 py-[9px] text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-300 rounded transition-colors shadow-sm">
-          <X size={14} /> Limpar
-        </button>
-        <button onClick={() => showToast('Pesquisa atualizada!')} className="flex items-center justify-center gap-2 bg-[#0097B2] hover:bg-[#007B9E] text-white px-5 py-[9px] rounded text-xs font-bold transition-colors shadow-sm border border-transparent">
-          <Search size={14} /> Aplicar Filtro
-        </button>
-      </div>
-    </div>
-  </div>
                 {/* KPIs Interativos com Valores Exatos */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div
@@ -812,7 +956,6 @@ export default function App() {
                     <p className="text-xl font-light text-[#007B9E] truncate" title={`R$ ${totaisAtuais.empenhado}`}>R$ {totaisAtuais.empenhado}</p>
                     <p className="text-xs text-slate-400 mt-1">Reserva de dotação</p>
                   </div>
-
                   <div
                     onClick={() => setKpiFilter(kpiFilter === 'Liquidado' ? 'Todas' : 'Liquidado')}
                     className={`bg-white p-5 rounded border cursor-pointer transition-all flex flex-col justify-center ${kpiFilter === 'Liquidado' ? 'ring-2 ring-blue-400 shadow-md bg-blue-50' : 'border-slate-200 hover:border-slate-300 shadow-sm'}`}
@@ -821,7 +964,6 @@ export default function App() {
                     <p className="text-xl font-light text-blue-600 truncate" title={`R$ ${totaisAtuais.liquidado}`}>R$ {totaisAtuais.liquidado}</p>
                     <p className="text-xs text-slate-400 mt-1">Bens/serviços atestados</p>
                   </div>
-
                   <div
                     onClick={() => setKpiFilter(kpiFilter === 'Pago' ? 'Todas' : 'Pago')}
                     className={`bg-white p-5 rounded border cursor-pointer transition-all flex flex-col justify-center ${kpiFilter === 'Pago' ? 'ring-2 ring-green-400 shadow-md bg-green-50' : 'border-slate-200 hover:border-slate-300 shadow-sm'}`}
@@ -832,24 +974,26 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Tabela de Resumo Consolidado (Classificação da Unidade Gestora) */}
+                {/* Tabela de Resumo Consolidado */}
                 <div className="mt-8">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 px-1 gap-2">
                     <h3 className="text-sm font-semibold text-[#007B9E] uppercase tracking-wider flex items-center gap-2">
                       Classificação da Unidade Orçamentária
                     </h3>
-                    
-                    {/* Ícones de Exportação LAI (Movidos para cá) */}
-                    <div className="flex justify-end items-center gap-2">
-                      <span className="text-xs text-slate-400 font-medium mr-2 uppercase tracking-wider">Exportar:</span>
-                      <button onClick={() => showToast('Iniciando download do CSV...')} className="flex items-center justify-center w-9 h-9 bg-white border border-slate-200 text-slate-500 rounded hover:bg-[#0097B2] hover:text-white hover:border-[#0097B2] transition-colors shadow-sm" title="Exportar CSV">
-                        <FileText size={18} />
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={handleExportPDF}
+                        className="p-1.5 text-slate-400 hover:text-[#007B9E] hover:bg-[#E0F4F8] rounded transition-colors" 
+                        title="Exportar PDF"
+                      >
+                        <FileText size={16} />
                       </button>
-                      <button onClick={() => showToast('Iniciando download do XLSX...')} className="flex items-center justify-center w-9 h-9 bg-white border border-slate-200 text-slate-500 rounded hover:bg-[#0097B2] hover:text-white hover:border-[#0097B2] transition-colors shadow-sm" title="Exportar XLSX">
-                        <FileSpreadsheet size={18} />
-                      </button>
-                      <button onClick={() => showToast('Iniciando download do JSON...')} className="flex items-center justify-center w-9 h-9 bg-white border border-slate-200 text-slate-500 rounded hover:bg-[#0097B2] hover:text-white hover:border-[#0097B2] transition-colors shadow-sm" title="Exportar JSON">
-                        <FileJson size={18} />
+                      <button 
+                        onClick={handleExportExcel}
+                        className="p-1.5 text-slate-400 hover:text-[#007B9E] hover:bg-[#E0F4F8] rounded transition-colors" 
+                        title="Exportar Excel"
+                      >
+                        <Download size={16} />
                       </button>
                     </div>
                   </div>
@@ -898,7 +1042,7 @@ export default function App() {
                                 onClick={() => { setKpiFilter('Empenhado'); setUgFilter('Todas'); }}
                                 className="font-bold text-[#0097B2] hover:text-[#007B9E] hover:underline transition-colors focus:outline-none focus:ring-2 focus:ring-[#0097B2] rounded px-1"
                               >
-                                {totaisGlobais.empenhado}
+                                {totaisGlobais?.empenhado || '0,00'}
                               </button>
                             </td>
                             <td className="p-4 text-right">
@@ -906,7 +1050,7 @@ export default function App() {
                                 onClick={() => { setKpiFilter('Liquidado'); setUgFilter('Todas'); }}
                                 className="font-bold text-[#0097B2] hover:text-[#007B9E] hover:underline transition-colors focus:outline-none focus:ring-2 focus:ring-[#0097B2] rounded px-1"
                               >
-                                {totaisGlobais.liquidado}
+                                {totaisGlobais?.liquidado || '0,00'}
                               </button>
                             </td>
                             <td className="p-4 text-right">
@@ -914,7 +1058,7 @@ export default function App() {
                                 onClick={() => { setKpiFilter('Pago'); setUgFilter('Todas'); }}
                                 className="font-bold text-[#0097B2] hover:text-[#007B9E] hover:underline transition-colors focus:outline-none focus:ring-2 focus:ring-[#0097B2] rounded px-1"
                               >
-                                {totaisGlobais.pago}
+                                {totaisGlobais?.pago || '0,00'}
                               </button>
                             </td>
                           </tr>
@@ -924,7 +1068,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Tabela de Classificação Orçamentária (Hierárquica / Drill-down) */}
+                {/* Tabela de Classificação Orçamentária */}
                 <div className="mt-8">
                   <h3 className="text-sm font-semibold text-[#007B9E] uppercase tracking-wider mb-4 px-1 flex items-center gap-2">
                     Classificação Orçamentária (Níveis de Despesa)
@@ -1037,7 +1181,6 @@ export default function App() {
                                   <span className="text-[#0097B2] font-medium hover:underline">
                                     {emp.id}
                                   </span>
-                                  {/* [D4] Badge de saldo — sempre visível, nunca ocultar */}
                                   {emp.saldoStatus === 'anulado' && (
                                     <span className="inline-flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-700 border border-red-200">Anulado</span>
                                   )}
@@ -1069,7 +1212,7 @@ export default function App() {
                     </table>
                   </div>
 
-                  {/* Paginação Suave - Estilo TCE-MS */}
+                  {/* Paginação */}
                   <div className="py-4 flex flex-col sm:flex-row justify-between items-center sm:items-start text-sm text-slate-500 mt-2 gap-4">
                     <div className="flex items-center gap-2">
                       <div className="border border-slate-300 rounded overflow-hidden">
@@ -1116,211 +1259,190 @@ export default function App() {
           </div>
         )}
 
- {/* --- DETALHE DO EMPENHO --- */}
-{currentView === 'detalhe' && selectedEmpenho && (
-  <div className="space-y-6">
+        {/* --- DETALHE DO EMPENHO --- */}
+        {currentView === 'detalhe' && selectedEmpenho && (
+          <div className="space-y-6">
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className="text-[#0097B2] hover:text-[#007B9E] flex items-center gap-1 text-sm font-medium mb-4 transition-colors"
+            >
+              <ChevronLeft size={16} /> Voltar para o Painel
+            </button>
 
-    <button
-      onClick={() => setCurrentView('dashboard')}
-      className="text-[#0097B2] hover:text-[#007B9E] flex items-center gap-1 text-sm font-medium mb-4 transition-colors"
-    >
-      <ChevronLeft size={16} /> Voltar para o Painel
-    </button>
-
-    {/* Valores em Destaque permanecem como cards para visibilidade rápida */}
-    <div className="bg-white p-8 rounded shadow-sm border border-slate-200">
-      <div className={`grid grid-cols-1 ${selectedEmpenho.valores.aPagar ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 bg-slate-50 p-6 rounded border border-slate-100`}>
-        <div className="text-center sm:border-r border-slate-200">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Empenhado</p>
-          <p className="text-2xl font-light text-slate-800">R$ {selectedEmpenho.valores.empenhado}</p>
-        </div>
-        <div className="text-center sm:border-r border-slate-200">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Liquidado</p>
-          <p className="text-2xl font-light text-blue-600">R$ {selectedEmpenho.valores.liquidado}</p>
-        </div>
-        <div className={`text-center ${selectedEmpenho.valores.aPagar ? 'sm:border-r border-slate-200' : ''}`}>
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Pago</p>
-          <p className="text-2xl font-light text-green-600">R$ {selectedEmpenho.valores.pago}</p>
-        </div>
-        {selectedEmpenho.valores.aPagar && (
-          <div className="text-center">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">A Pagar</p>
-            <p className="text-2xl font-light text-slate-600">R$ {selectedEmpenho.valores.aPagar}</p>
-          </div>
-        )}
-      </div>
-    </div>
-
-{/* Bloco 1: Dados do Empenho (Ordem das Informações Ajustada) */}
-    <Accordion title="Dados do Empenho" defaultExpanded={true}>
-      <div className="space-y-3 mb-8">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-slate-800">Nº do Empenho:</span>
-          <span className="text-sm text-[#0097B2] font-medium">{selectedEmpenho.id}</span>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-slate-800">Data de Emissão:</span>
-          <span className="text-sm text-slate-600">{selectedEmpenho.data}</span>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-slate-800">Valor:</span>
-          <span className="text-sm text-slate-600">{selectedEmpenho.valor}</span>
-        </div>
-        
-        {/* Favorecido e CPF/CNPJ agora aparecem antes da Finalidade */}
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-slate-800">Favorecido:</span>
-          <span className="text-sm text-slate-600">
-            {selectedEmpenho.credor || (selectedEmpenho.empenhos && selectedEmpenho.empenhos[0]?.favorecido) || '-'}
-          </span>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-slate-800">CPF/CNPJ:</span>
-          <span className="text-sm text-slate-600">
-            {selectedEmpenho.cpfCnpj || (selectedEmpenho.empenhos && selectedEmpenho.empenhos[0]?.cpfCnpj) || '-'}
-          </span>
-        </div>
-
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-slate-800 shrink-0">Finalidade:</span>
-          <span className="text-sm text-slate-600 leading-relaxed">{selectedEmpenho.objeto}</span>
-        </div>
-      </div>
-
-      <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-        Licitação / Contrato
-      </h4>
-      <div className="flex flex-wrap gap-x-12 gap-y-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-slate-800">Modalidade da Licitação:</span>
-          <span className="text-sm text-slate-600">{selectedEmpenho.licitacaoModalidade || '-'}</span>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-slate-800">Nº do Procedimento Licitatório:</span>
-          <span className="text-sm text-[#0097B2]">{selectedEmpenho.procedimentoLicitatorio || '-'}</span>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-slate-800">Processo Administrativo:</span>
-          <span className="text-sm text-[#0097B2]">{selectedEmpenho.processo || '-'}</span>
-        </div>
-      </div>
-    </Accordion>
-
-    {/* Bloco 2: Dados do Orçamento (Layout Inline em 2 colunas) */}
-    <Accordion title="DADOS DO ORÇAMENTO" defaultExpanded={true}>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-16 gap-y-10">
-        
-        {/* Coluna 1: Classificação Orçamentária */}
-        <div className="space-y-3">
-          <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-            Classificação Orçamentária
-          </h4>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Unidade Orçamentária:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.unidade || '-'}</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Função:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.funcao || selectedEmpenho.funcao || '-'}</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Subfunção:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.subfuncao || '-'}</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Programa:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.programa || '-'}</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Ação / Projeto Atividade:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.projetoAtividade || '-'}</span>
-          </div>
-        </div>
-
-        {/* Coluna 2: Classificação por Natureza da Despesa */}
-        <div className="space-y-3">
-          <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-            Classificação por Natureza da Despesa
-          </h4>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Categoria Econômica:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.categoria || '-'}</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Grupo de Natureza da Despesa:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.gnd || '-'}</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Modalidade de Aplicação:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.modalidade || '-'}</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Elemento de Despesa:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.itemDespesa || '-'}</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">Fonte de recursos:</span>
-            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.fonte || '-'}</span>
-          </div>
-        </div>
-      </div>
-    </Accordion>
-
-   
-
-{/* Bloco 3: Execução Financeira (Fases da Despesa Consolidadas) */}
-    <Accordion title="Execução Financeira" defaultExpanded={true}>
-      <div className="space-y-10">
-        
-        {/* Sub-bloco: Empenhos */}
-        {selectedEmpenho.empenhos && selectedEmpenho.empenhos.length > 0 && (
-          <div>
-            <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-              Empenhos
-            </h4>
-            <div className="overflow-hidden">
-              {renderTabelaFase(null, selectedEmpenho.empenhos, 'mb-0')}
+            <div className="bg-white p-8 rounded shadow-sm border border-slate-200">
+              <div className={`grid grid-cols-1 ${selectedEmpenho.valores.aPagar ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 bg-slate-50 p-6 rounded border border-slate-100`}>
+                <div className="text-center sm:border-r border-slate-200">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Empenhado</p>
+                  <p className="text-2xl font-light text-slate-800">R$ {selectedEmpenho.valores.empenhado}</p>
+                </div>
+                <div className="text-center sm:border-r border-slate-200">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Liquidado</p>
+                  <p className="text-2xl font-light text-blue-600">R$ {selectedEmpenho.valores.liquidado}</p>
+                </div>
+                <div className={`text-center ${selectedEmpenho.valores.aPagar ? 'sm:border-r border-slate-200' : ''}`}>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Pago</p>
+                  <p className="text-2xl font-light text-green-600">R$ {selectedEmpenho.valores.pago}</p>
+                </div>
+                {selectedEmpenho.valores.aPagar && (
+                  <div className="text-center">
+                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">A Pagar</p>
+                    <p className="text-2xl font-light text-slate-600">R$ {selectedEmpenho.valores.aPagar}</p>
+                  </div>
+                )}
+              </div>
             </div>
+
+            <Accordion title="Dados do Empenho" defaultExpanded={true}>
+              <div className="space-y-3 mb-8">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-slate-800">Nº do Empenho:</span>
+                  <span className="text-sm text-[#0097B2] font-medium">{selectedEmpenho.id}</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-slate-800">Data de Emissão:</span>
+                  <span className="text-sm text-slate-600">{selectedEmpenho.data}</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-slate-800">Valor:</span>
+                  <span className="text-sm text-slate-600">{selectedEmpenho.valor}</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-slate-800">Favorecido:</span>
+                  <span className="text-sm text-slate-600">
+                    {selectedEmpenho.credor || (selectedEmpenho.empenhos && selectedEmpenho.empenhos[0]?.favorecido) || '-'}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-slate-800">CPF/CNPJ:</span>
+                  <span className="text-sm text-slate-600">
+                    {selectedEmpenho.cpfCnpj || (selectedEmpenho.empenhos && selectedEmpenho.empenhos[0]?.cpfCnpj) || '-'}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-slate-800 shrink-0">Finalidade:</span>
+                  <span className="text-sm text-slate-600 leading-relaxed">{selectedEmpenho.objeto}</span>
+                </div>
+              </div>
+
+              <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                Licitação / Contrato
+              </h4>
+              <div className="flex flex-wrap gap-x-12 gap-y-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-slate-800">Modalidade da Licitação:</span>
+                  <span className="text-sm text-slate-600">{selectedEmpenho.licitacaoModalidade || '-'}</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-slate-800">Nº do Procedimento Licitatório:</span>
+                  <span className="text-sm text-[#0097B2]">{selectedEmpenho.procedimentoLicitatorio || '-'}</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-slate-800">Processo Administrativo:</span>
+                  <span className="text-sm text-[#0097B2]">{selectedEmpenho.processo || '-'}</span>
+                </div>
+              </div>
+            </Accordion>
+
+            <Accordion title="DADOS DO ORÇAMENTO" defaultExpanded={true}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-16 gap-y-10">
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                    Classificação Orçamentária
+                  </h4>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Unidade Orçamentária:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.unidade || '-'}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Função:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.funcao || selectedEmpenho.funcao || '-'}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Subfunção:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.subfuncao || '-'}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Programa:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.programa || '-'}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Ação / Projeto Atividade:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.projetoAtividade || '-'}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                    Classificação por Natureza da Despesa
+                  </h4>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Categoria Econômica:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.categoria || '-'}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Grupo de Natureza da Despesa:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.gnd || '-'}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Modalidade de Aplicação:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.modalidade || '-'}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Elemento de Despesa:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.itemDespesa || '-'}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-slate-800">Fonte de recursos:</span>
+                    <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.fonte || '-'}</span>
+                  </div>
+                </div>
+              </div>
+            </Accordion>
+
+            <Accordion title="Execução Financeira" defaultExpanded={true}>
+              <div className="space-y-10">
+                {selectedEmpenho.empenhos && selectedEmpenho.empenhos.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                      Empenhos
+                    </h4>
+                    <div className="overflow-hidden">
+                      {renderTabelaFase(null, selectedEmpenho.empenhos, 'mb-0')}
+                    </div>
+                  </div>
+                )}
+
+                {selectedEmpenho.liquidacoes && selectedEmpenho.liquidacoes.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                      Liquidações
+                    </h4>
+                    <div className="overflow-hidden">
+                      {renderTabelaFase(null, selectedEmpenho.liquidacoes, 'mb-0')}
+                    </div>
+                  </div>
+                )}
+
+                {selectedEmpenho.pagamentos && selectedEmpenho.pagamentos.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                      Pagamentos
+                    </h4>
+                    <div className="overflow-hidden">
+                      {renderTabelaFase(null, selectedEmpenho.pagamentos, 'mb-0')}
+                    </div>
+                  </div>
+                )}
+
+                {(!selectedEmpenho.empenhos?.length && !selectedEmpenho.liquidacoes?.length && !selectedEmpenho.pagamentos?.length) && (
+                  <p className="text-sm text-slate-500 italic text-center py-4">
+                    Não existem registros de execução financeira para este documento.
+                  </p>
+                )}
+              </div>
+            </Accordion>
           </div>
         )}
-
-        {/* Sub-bloco: Liquidações */}
-        {selectedEmpenho.liquidacoes && selectedEmpenho.liquidacoes.length > 0 && (
-          <div>
-            <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-              Liquidações
-            </h4>
-            <div className="overflow-hidden">
-              {renderTabelaFase(null, selectedEmpenho.liquidacoes, 'mb-0')}
-            </div>
-          </div>
-        )}
-
-        {/* Sub-bloco: Pagamentos */}
-        {selectedEmpenho.pagamentos && selectedEmpenho.pagamentos.length > 0 && (
-          <div>
-            <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-              Pagamentos
-            </h4>
-            <div className="overflow-hidden">
-              {renderTabelaFase(null, selectedEmpenho.pagamentos, 'mb-0')}
-            </div>
-          </div>
-        )}
-
-        {/* Mensagem caso não existam fases (Segurança de Interface) */}
-        {(!selectedEmpenho.empenhos?.length && !selectedEmpenho.liquidacoes?.length && !selectedEmpenho.pagamentos?.length) && (
-          <p className="text-sm text-slate-500 italic text-center py-4">
-            Não existem registros de execução financeira para este documento.
-          </p>
-        )}
-      </div>
-    </Accordion>
-          
-
-          </div>
-        )}
-
       </main>
     </div>
   );

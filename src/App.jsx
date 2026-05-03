@@ -32,6 +32,8 @@ const Accordion = ({ title, defaultExpanded = true, children }) => {
 };
 
 export default function App() {
+  const [isDiariasExpanded, setIsDiariasExpanded] = useState(false);
+  const [isRelatoriosExpanded, setIsRelatoriosExpanded] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedEmpenho, setSelectedEmpenho] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -48,17 +50,12 @@ export default function App() {
   // Estado de Expansão da Tabela Hierárquica (inicia recolhido)
   const [expandedNodes, setExpandedNodes] = useState([]);
 
-  // --- NOVOS: Estados da Barra Lateral ---
+
+  // --- Estados da Barra de Filtros ---
   const [anoFilter, setAnoFilter] = useState('2026');
   const [dataInicio, setDataInicio] = useState('2026-01-01');
   const [dataFim, setDataFim] = useState('2026-12-31');
-  const [empenhoText, setEmpenhoText] = useState('');
-  const [credorText, setCredorText] = useState('');
-  const [valorText, setValorText] = useState('');
-  const [descricaoText, setDescricaoText] = useState('');
-  const [categoriaFilter, setCategoriaFilter] = useState('Todas');
-  const [grupoFilter, setGrupoFilter] = useState('Todas');
-  const [elementoFilter, setElementoFilter] = useState('Todas');
+  const [palavraChaveText, setPalavraChaveText] = useState(''); // Novo estado unificado
 
   const showToast = (message) => {
     setToastMessage(message);
@@ -66,12 +63,11 @@ export default function App() {
   };
 
   // Mock Data Empenhos
-  const mockEmpenhos = [
+ const mockEmpenhos = [
     {
       id: '2026NE000100',
       data: '12/01/2026',
       ug: '30101',
-      // [D1] classificacao: objeto hierárquico explícito
       classificacao: { categoriaId: '3', grupoId: '31', modalidadeId: '3190', elementoId: '319011' },
       credor: '00.000.000/0001-00',
       funcao: '04 - Administração',
@@ -80,13 +76,12 @@ export default function App() {
       valor: 'R$ 2.103.909,65',
       objeto: 'Empenho Orçamentário - REFERENTE A VENCIMENTOS E SALÁRIOS...',
       processo: '10001/2026',
-      // [D3] licitação separada
       licitacaoModalidade: 'INEXIGIBILIDADE',
       procedimentoLicitatorio: null,
       valores: { empenhado: '2.103.909,65', liquidado: '2.103.909,65', pago: '1.581.192,89', aPagar: '522.716,76' },
       programatica: {
         codigo: '04.122.0001.2.001.3.1.90.11.01.00',
-        unidade: '30101 - TCE-MS PRINCIPAL',
+        unidade: '30101 - TRIBUNAL DE CONTAS', // Corrigido
         funcao: '04 - Administração',
         subfuncao: '122 - Administração Geral',
         programa: '0001 - GESTÃO ADMINISTRATIVA',
@@ -123,9 +118,9 @@ export default function App() {
       licitacaoModalidade: 'PREGÃO',
       procedimentoLicitatorio: 'Pregão Eletrônico Nº 12/2026',
       valores: { empenhado: '1.270,20', liquidado: '0,00', pago: '0,00', aPagar: '1.270,20' },
-      programatica: {
+     programatica: {
         codigo: '04.122.0001.2.001.3.3.90.39.00.00',
-        unidade: '30101 - TCE-MS PRINCIPAL',
+        unidade: '30101 - TRIBUNAL DE CONTAS', // Corrigido
         funcao: '04 - Administração',
         subfuncao: '122 - Administração Geral',
         programa: '0001 - GESTÃO ADMINISTRATIVA',
@@ -160,7 +155,7 @@ export default function App() {
       valores: { empenhado: '1.621,00', liquidado: '1.621,00', pago: '1.621,00', aPagar: '0,00' },
       programatica: {
         codigo: '01.001.01.031.0001.2.001.3.3.90.30.00.00',
-        unidade: '30901 - FUNDO ESP DE DESENV MODERN',
+        unidade: '30901 - FUNDO ESP DE DESENV MODERN E APERF DO TC MS', // Corrigido nome completo
         funcao: '04 - Administração',
         subfuncao: '122 - Administração Geral',
         programa: '0001 - PROCESSO LEGISLATIVO',
@@ -199,7 +194,7 @@ export default function App() {
       valores: { empenhado: '3.500,00', liquidado: '0,00', pago: '0,00', aPagar: '3.500,00' },
       programatica: {
         codigo: '04.122.0001.2.001.3.3.90.40.00.00',
-        unidade: '30101 - TCE-MS PRINCIPAL',
+        unidade: '30101 - TRIBUNAL DE CONTAS', // Corrigido
         funcao: '04 - Administração',
         subfuncao: '122 - Administração Geral',
         programa: '0001 - GESTÃO ADMINISTRATIVA',
@@ -324,7 +319,6 @@ export default function App() {
     return result;
   };
 
-  const flattenedClassification = flattenTree(hierarchicalClassification, expandedNodes);
 
   // Filtra a tabela de empenhos combinando TODOS os filtros
   const filteredEmpenhos = empenhosToUse.filter(emp => {
@@ -336,9 +330,7 @@ export default function App() {
       return true;
     })();
     const matchUg = ugFilter === 'Todas' || emp.ug === ugFilter;
-    // [D1] Filtro de classificação hierárquico com correspondência EXATA por nível.
-    // Cada nível é testado independentemente — sem startsWith ambíguo.
-    // classificacaoFilter contém o id do nó selecionado (ex: '3', '33', '3390', '339014')
+    
     const matchClassificacao = classificacaoFilter === 'Todas' || (
       emp.classificacao?.categoriaId  === classificacaoFilter ||
       emp.classificacao?.grupoId      === classificacaoFilter ||
@@ -353,26 +345,66 @@ export default function App() {
     const end = new Date(`${dataFim}T23:59:59`);
     const matchDate = empDate >= start && empDate <= end;
 
-    // Filtros da Barra Lateral: Texto
-    const matchEmpenhoText = empenhoText === '' || emp.id.toLowerCase().includes(empenhoText.toLowerCase());
-    const matchCredorText = credorText === '' || emp.credor.toLowerCase().includes(credorText.toLowerCase());
-    const matchValorText = valorText === '' || emp.valor.toLowerCase().includes(valorText.toLowerCase());
-    const matchDescricaoText = descricaoText === '' || emp.objeto.toLowerCase().includes(descricaoText.toLowerCase());
+    // Filtro unificado de Palavra-Chave
+    const termo = palavraChaveText.toLowerCase();
+    const matchPalavraChave = termo === '' || 
+      (emp.objeto && emp.objeto.toLowerCase().includes(termo)) || 
+      (emp.credor && emp.credor.toLowerCase().includes(termo)) || 
+      (emp.id && emp.id.toLowerCase().includes(termo));
 
-    // Filtros da Barra Lateral: Combos Funcional Programática
-    const matchCategoria = categoriaFilter === 'Todas' || emp.classificacao?.categoriaId === categoriaFilter.split(' - ')[0];
-    const matchGrupo = grupoFilter === 'Todas' || emp.classificacao?.grupoId === grupoFilter.split(' - ')[0];
-    const matchElemento = elementoFilter === 'Todas' || emp.classificacao?.elementoId === elementoFilter.split(' - ')[0];
-
-    return matchFase && matchUg && matchClassificacao && matchDate &&
-      matchEmpenhoText && matchCredorText && matchValorText && matchDescricaoText &&
-      matchCategoria && matchGrupo && matchElemento;
+    return matchFase && matchUg && matchClassificacao && matchDate && matchPalavraChave;
   });
+
+  // --- INÍCIO DA LÓGICA DA ÁRVORE DINÂMICA ---
+  // 1. Pega a base da classificação
+  const baseClassification = classificacaoHierarquica?.length > 0 
+    ? classificacaoHierarquica 
+    : hierarchicalClassification;
+
+  // 2. Reconstrói os totais da árvore com base nos empenhos filtrados (filteredEmpenhos)
+  const dynamicClassification = useMemo(() => {
+    const updateNodeValues = (nodes) => {
+      return nodes.map(node => {
+        // Filtra os empenhos que pertencem a este nó específico (seja Categoria, Grupo, etc.)
+        const empenhosDoNo = filteredEmpenhos.filter(emp => 
+          emp.classificacao?.categoriaId === node.id ||
+          emp.classificacao?.grupoId === node.id ||
+          emp.classificacao?.modalidadeId === node.id ||
+          emp.classificacao?.elementoId === node.id
+        );
+
+        // Soma os novos valores apenas do que foi filtrado para ESTE nível
+        const novosValores = empenhosDoNo.reduce((acc, emp) => {
+          const parse = (v) => typeof v === 'string' ? parseFloat(v.replace(/[^\d,-]/g, '').replace(',', '.')) : v;
+          acc.empenhado += parse(emp.valores.empenhado || 0);
+          acc.liquidado += parse(emp.valores.liquidado || 0);
+          acc.pago += parse(emp.valores.pago || 0);
+          return acc;
+        }, { empenhado: 0, liquidado: 0, pago: 0 });
+
+        // Processa os filhos recursivamente para que eles calculem seus próprios totais
+        const children = node.children ? updateNodeValues(node.children) : null;
+
+        // RETIRADA A DUPLA CONTAGEM: Não somamos mais o 'children' aqui, 
+        // pois o reduce acima já pegou todos os empenhos deste nível!
+
+        return { ...node, valores: novosValores, children };
+      });
+    };
+
+    return updateNodeValues(baseClassification);
+  }, [baseClassification, filteredEmpenhos]);
+  // 3. Tabela usa a árvore dinâmica
+  const flattenedClassification = useMemo(() => {
+    return flattenTree(dynamicClassification, expandedNodes);
+  }, [dynamicClassification, expandedNodes]);
+  // --- FIM DA LÓGICA DA ÁRVORE DINÂMICA ---
+
 
   // Sempre reiniciar a página quando qualquer filtro alterar
   useEffect(() => {
     setCurrentPage(1);
-  }, [kpiFilter, ugFilter, classificacaoFilter, anoFilter, dataInicio, dataFim, empenhoText, credorText, valorText, descricaoText, categoriaFilter, grupoFilter, elementoFilter]);
+  }, [kpiFilter, ugFilter, classificacaoFilter, anoFilter, dataInicio, dataFim, palavraChaveText]);
 
   const totalFiltered = filteredEmpenhos.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / itemsPerPage));
@@ -436,13 +468,7 @@ export default function App() {
     setAnoFilter('2026');
     setDataInicio('2026-01-01');
     setDataFim('2026-12-31');
-    setEmpenhoText('');
-    setCredorText('');
-    setValorText('');
-    setDescricaoText('');
-    setCategoriaFilter('Todas');
-    setGrupoFilter('Todas');
-    setElementoFilter('Todas');
+    setPalavraChaveText(''); // Apenas o nosso novo estado unificado!
 
     showToast('Todos os filtros foram limpos.');
   };
@@ -626,68 +652,156 @@ export default function App() {
 
             <div className="flex flex-col lg:flex-row gap-8">
 
-              {/* Barra Lateral: Filtros Agrupados */}
-              <div className="w-full lg:w-1/4 flex-shrink-0">
-                <form id="filtros-form" onSubmit={(e) => e.preventDefault()} className="bg-white p-5 rounded border border-slate-200 shadow-sm sticky top-24">
-                  <h3 className="text-sm font-semibold text-[#007B9E] uppercase tracking-wider mb-5 flex items-center gap-2">
-                    <Filter size={18} /> Filtros da Pesquisa
-                  </h3>
-
-                  <div className="space-y-4">
-                    {/* Exibe o Filtro de Ano apenas se for um período de ano padrão */}
-                    {isStandardYear && (
-                      <FilterInput
-                        label="Ano" type="select" options={["2026", "2025", "2024", "2023", "2022"]}
-                        value={anoFilter} onChange={handleAnoChange}
-                      />
+           {/* Barra Lateral: Menu de Navegação Ajustado */}
+            <div className="w-full lg:w-1/5 flex-shrink-0">
+              <nav className="bg-white rounded border border-slate-200 shadow-sm sticky top-24 overflow-hidden">
+                <ul className="py-2">
+                  <li>
+                    <button className="w-full text-left px-6 py-3 text-sm font-medium text-[#007B9E] bg-[#E0F4F8] border-l-4 border-[#007B9E]">
+                      Empenhos, Liquidações e Pagamentos
+                    </button>
+                  </li>
+                  <li>
+                    <button className="w-full text-left px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 hover:text-[#007B9E] transition-colors">
+                      Ordem Cronológica de Pagamentos
+                    </button>
+                  </li>
+                  
+                  {/* Menu Diárias com Toggle e Ícone */}
+                  <li className="mt-1">
+                    <button 
+                      onClick={() => setIsDiariasExpanded(!isDiariasExpanded)}
+                      className="w-full flex items-center justify-between px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                    >
+                      Diárias
+                      <ChevronRight size={16} className={`text-slate-400 transition-transform ${isDiariasExpanded ? 'rotate-90' : ''}`} />
+                    </button>
+                    {isDiariasExpanded && (
+                      <ul className="pl-10 pr-4 pb-2 space-y-2 animate-in fade-in slide-in-from-top-1">
+                        <li>
+                          <button className="text-xs text-slate-500 hover:text-[#007B9E] transition-colors">
+                            Informações
+                          </button>
+                        </li>
+                        <li>
+                          <button className="text-xs text-slate-500 hover:text-[#007B9E] transition-colors">
+                            Tabela de Valores
+                          </button>
+                        </li>
+                      </ul>
                     )}
+                  </li>
 
-                    <div className="relative border border-slate-300 rounded pt-3 pb-2 px-2 bg-white focus-within:border-[#0097B2] focus-within:ring-1 focus-within:ring-[#0097B2] transition-colors">
-                      <label className="absolute -top-2.5 left-2 bg-white px-1 text-xs text-slate-500 z-10">
-                        Período
-                      </label>
-                      <div className="flex items-center justify-between gap-1">
-                        <input type="date" value={dataInicio} onChange={handleDataInicioChange} className="flex-1 min-w-0 text-xs text-slate-700 bg-transparent outline-none cursor-pointer tracking-tighter sm:tracking-normal" />
-                        <span className="text-slate-400 text-xs font-medium">a</span>
-                        <input type="date" value={dataFim} onChange={handleDataFimChange} className="flex-1 min-w-0 text-xs text-slate-700 bg-transparent outline-none cursor-pointer tracking-tighter sm:tracking-normal" />
-                      </div>
-                    </div>
-
-                    <FilterInput
-                      label="Categoria Econômica" type="select" options={optionsCategoria}
-                      value={categoriaFilter} onChange={e => setCategoriaFilter(e.target.value)}
-                    />
-
-                    <FilterInput
-                      label="Grupo de Natureza da Despesa" type="select" options={optionsGrupo}
-                      value={grupoFilter} onChange={e => setGrupoFilter(e.target.value)}
-                    />
-
-                    <FilterInput
-                      label="Elemento de Despesa" type="select" options={optionsElemento}
-                      value={elementoFilter} onChange={e => setElementoFilter(e.target.value)}
-                    />
-
-                    <FilterInput label="Empenho" placeholder="Ex: 2026NE..." value={empenhoText} onChange={e => setEmpenhoText(e.target.value)} />
-                    <FilterInput label="Favorecido" placeholder="Buscar nome, cpf ou cnpj" value={credorText} onChange={e => setCredorText(e.target.value)} />
-                    <FilterInput label="Valor" placeholder="Ex: 1.250,00" value={valorText} onChange={e => setValorText(e.target.value)} />
-                    <FilterInput label="Descrição" placeholder="Palavras-chave" value={descricaoText} onChange={e => setDescricaoText(e.target.value)} />
-                  </div>
-
-                  <div className="mt-6 flex flex-col xl:flex-row gap-3 pt-5 border-t border-slate-100">
-                    <button type="button" onClick={() => showToast('Pesquisa atualizada!')} className="w-full xl:w-1/2 flex items-center justify-center gap-2 bg-[#0097B2] hover:bg-[#007B9E] text-white px-3 py-2.5 rounded text-sm font-medium transition-colors">
-                      <Search size={16} /> Pesquisar
+                  <li>
+                    <button className="w-full text-left px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors border-t border-slate-50">
+                      Transferências Voluntárias Realizadas
                     </button>
-                    <button type="button" onClick={handleLimparFiltros} className="w-full xl:w-1/2 flex items-center justify-center gap-2 border border-slate-300 text-slate-600 bg-white hover:bg-slate-50 px-3 py-2.5 rounded text-sm font-medium transition-colors">
-                      <X size={16} /> Limpar
+                  </li>
+
+                  {/* Menu Relatórios Fiscais com Toggle e Ícone */}
+                  <li className="border-t border-slate-50">
+                    <button 
+                      onClick={() => setIsRelatoriosExpanded(!isRelatoriosExpanded)}
+                      className="w-full flex items-center justify-between px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                    >
+                      Relatórios Fiscais
+                      <ChevronRight size={16} className={`text-slate-400 transition-transform ${isRelatoriosExpanded ? 'rotate-90' : ''}`} />
                     </button>
-                  </div>
-                </form>
-              </div>
+                    {isRelatoriosExpanded && (
+                      <ul className="pl-10 pr-4 pb-3 space-y-2 animate-in fade-in slide-in-from-top-1">
+                        <li>
+                          <button className="text-xs text-slate-500 hover:text-[#007B9E] text-left leading-tight transition-colors">
+                            Relatório de Gestão Fiscal - RGF
+                          </button>
+                        </li>
+                        <li>
+                          <button className="text-xs text-slate-500 hover:text-[#007B9E] text-left leading-tight transition-colors">
+                            Relatório Resumido da Execução Orçamentária
+                          </button>
+                        </li>
+                      </ul>
+                    )}
+                  </li>
+                </ul>
+              </nav>
+            </div>
+             {/* Conteúdo Principal */}
+<div className="w-full lg:w-4/5 space-y-6">
 
-              {/* Conteúdo Principal */}
-              <div className="w-full lg:w-3/4 space-y-8">
+{/* Barra de Filtros Horizontal - Atualizada com Novo Placeholder e Formato */}
+  <div className="bg-white p-4 rounded border border-slate-200 shadow-sm mb-6">
+    <div className="flex items-center gap-2 mb-3 text-[#007B9E] font-bold text-xs uppercase tracking-wider">
+      <Filter size={14} /> Filtros de Pesquisa
+    </div>
+    
+    <div className="flex flex-col lg:flex-row items-end gap-4">
+      
+      {isStandardYear && (
+        <div className="w-full lg:w-32 flex-shrink-0">
+          <FilterInput label="Ano" type="select" options={["2026", "2025", "2024", "2023", "2022"]} value={anoFilter} onChange={handleAnoChange} />
+        </div>
+      )}
+      
+      {/* Filtro de Período com formato forçado para DD/MM/AAAA */}
+      <div className="w-full lg:w-64 flex-shrink-0 relative border border-slate-300 rounded pt-3 pb-2 px-2 bg-white focus-within:border-[#0097B2] focus-within:ring-1 focus-within:ring-[#0097B2] transition-colors">
+        <label className="absolute -top-2.5 left-2 bg-white px-1 text-[10px] text-slate-500 font-medium">Período (DD/MM/AAAA)</label>
+        <div className="flex items-center gap-1">
+          
+          {/* Data Início */}
+          <div className="relative w-full flex items-center">
+            {/* Texto forçado no formato BR */}
+            <span className="absolute left-0 pointer-events-none text-xs text-slate-700">
+              {dataInicio ? dataInicio.split('-').reverse().join('/') : ''}
+            </span>
+            {/* Input nativo com texto transparente */}
+            <input 
+              type="date" 
+              value={dataInicio} 
+              onChange={handleDataInicioChange} 
+              className="w-full text-xs text-transparent outline-none bg-transparent z-10 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+            />
+          </div>
 
+          <span className="text-slate-400">-</span>
+          
+          {/* Data Fim */}
+          <div className="relative w-full flex items-center">
+            {/* Texto forçado no formato BR */}
+            <span className="absolute left-0 pointer-events-none text-xs text-slate-700">
+              {dataFim ? dataFim.split('-').reverse().join('/') : ''}
+            </span>
+            {/* Input nativo com texto transparente */}
+            <input 
+              type="date" 
+              value={dataFim} 
+              onChange={handleDataFimChange} 
+              className="w-full text-xs text-transparent outline-none bg-transparent z-10 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+            />
+          </div>
+
+        </div>
+      </div>
+
+      {/* Campo Palavra-Chave com Novo Placeholder solicitado */}
+      <div className="w-full flex-grow">
+        <FilterInput 
+          label="Palavra-Chave" 
+          placeholder="Busque por qualquer dado do empenho." 
+          value={palavraChaveText} 
+          onChange={e => setPalavraChaveText(e.target.value)} 
+        />
+      </div>
+
+      <div className="w-full lg:w-auto flex justify-end gap-2 flex-shrink-0">
+        <button onClick={handleLimparFiltros} className="flex items-center justify-center gap-2 px-4 py-[9px] text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-300 rounded transition-colors shadow-sm">
+          <X size={14} /> Limpar
+        </button>
+        <button onClick={() => showToast('Pesquisa atualizada!')} className="flex items-center justify-center gap-2 bg-[#0097B2] hover:bg-[#007B9E] text-white px-5 py-[9px] rounded text-xs font-bold transition-colors shadow-sm border border-transparent">
+          <Search size={14} /> Aplicar Filtro
+        </button>
+      </div>
+    </div>
+  </div>
                 {/* KPIs Interativos com Valores Exatos */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div
@@ -1002,174 +1116,207 @@ export default function App() {
           </div>
         )}
 
-        {/* --- DETALHE DO EMPENHO --- */}
-        {currentView === 'detalhe' && selectedEmpenho && (
-          <div className="space-y-6">
+ {/* --- DETALHE DO EMPENHO --- */}
+{currentView === 'detalhe' && selectedEmpenho && (
+  <div className="space-y-6">
 
-            <button
-              onClick={() => setCurrentView('dashboard')}
-              className="text-[#0097B2] hover:text-[#007B9E] flex items-center gap-1 text-sm font-medium mb-4 transition-colors"
-            >
-              <ChevronLeft size={16} /> Voltar para o Painel
-            </button>
+    <button
+      onClick={() => setCurrentView('dashboard')}
+      className="text-[#0097B2] hover:text-[#007B9E] flex items-center gap-1 text-sm font-medium mb-4 transition-colors"
+    >
+      <ChevronLeft size={16} /> Voltar para o Painel
+    </button>
 
-            {/* Valores em Destaque */}
-            <div className="bg-white p-8 rounded shadow-sm border border-slate-200">
-              <div className={`grid grid-cols-1 ${selectedEmpenho.valores.aPagar ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 bg-slate-50 p-6 rounded border border-slate-100`}>
-                <div className="text-center sm:border-r border-slate-200 pb-2 sm:pb-0 border-b sm:border-b-0">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Empenhado</p>
-                  <p className="text-2xl font-light text-slate-800">R$ {selectedEmpenho.valores.empenhado}</p>
-                </div>
-                <div className="text-center sm:border-r border-slate-200 pb-2 sm:pb-0 border-b sm:border-b-0">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Liquidado</p>
-                  <p className="text-2xl font-light text-blue-600">R$ {selectedEmpenho.valores.liquidado}</p>
-                </div>
-                <div className={`text-center ${selectedEmpenho.valores.aPagar ? 'sm:border-r border-slate-200 pb-2 sm:pb-0 border-b sm:border-b-0' : ''}`}>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Pago</p>
-                  <p className="text-2xl font-light text-green-600">R$ {selectedEmpenho.valores.pago}</p>
-                </div>
-                {selectedEmpenho.valores.aPagar && (
-                  <div className="text-center">
-                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">A Pagar</p>
-                    <p className="text-2xl font-light text-slate-600">R$ {selectedEmpenho.valores.aPagar}</p>
-                  </div>
-                )}
-              </div>
+    {/* Valores em Destaque permanecem como cards para visibilidade rápida */}
+    <div className="bg-white p-8 rounded shadow-sm border border-slate-200">
+      <div className={`grid grid-cols-1 ${selectedEmpenho.valores.aPagar ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 bg-slate-50 p-6 rounded border border-slate-100`}>
+        <div className="text-center sm:border-r border-slate-200">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Empenhado</p>
+          <p className="text-2xl font-light text-slate-800">R$ {selectedEmpenho.valores.empenhado}</p>
+        </div>
+        <div className="text-center sm:border-r border-slate-200">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Liquidado</p>
+          <p className="text-2xl font-light text-blue-600">R$ {selectedEmpenho.valores.liquidado}</p>
+        </div>
+        <div className={`text-center ${selectedEmpenho.valores.aPagar ? 'sm:border-r border-slate-200' : ''}`}>
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Pago</p>
+          <p className="text-2xl font-light text-green-600">R$ {selectedEmpenho.valores.pago}</p>
+        </div>
+        {selectedEmpenho.valores.aPagar && (
+          <div className="text-center">
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">A Pagar</p>
+            <p className="text-2xl font-light text-slate-600">R$ {selectedEmpenho.valores.aPagar}</p>
+          </div>
+        )}
+      </div>
+    </div>
+
+{/* Bloco 1: Dados do Empenho (Ordem das Informações Ajustada) */}
+    <Accordion title="Dados do Empenho" defaultExpanded={true}>
+      <div className="space-y-3 mb-8">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-slate-800">Nº do Empenho:</span>
+          <span className="text-sm text-[#0097B2] font-medium">{selectedEmpenho.id}</span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-slate-800">Data de Emissão:</span>
+          <span className="text-sm text-slate-600">{selectedEmpenho.data}</span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-slate-800">Valor:</span>
+          <span className="text-sm text-slate-600">{selectedEmpenho.valor}</span>
+        </div>
+        
+        {/* Favorecido e CPF/CNPJ agora aparecem antes da Finalidade */}
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-slate-800">Favorecido:</span>
+          <span className="text-sm text-slate-600">
+            {selectedEmpenho.credor || (selectedEmpenho.empenhos && selectedEmpenho.empenhos[0]?.favorecido) || '-'}
+          </span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-slate-800">CPF/CNPJ:</span>
+          <span className="text-sm text-slate-600">
+            {selectedEmpenho.cpfCnpj || (selectedEmpenho.empenhos && selectedEmpenho.empenhos[0]?.cpfCnpj) || '-'}
+          </span>
+        </div>
+
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-slate-800 shrink-0">Finalidade:</span>
+          <span className="text-sm text-slate-600 leading-relaxed">{selectedEmpenho.objeto}</span>
+        </div>
+      </div>
+
+      <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+        Licitação / Contrato
+      </h4>
+      <div className="flex flex-wrap gap-x-12 gap-y-3">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-slate-800">Modalidade da Licitação:</span>
+          <span className="text-sm text-slate-600">{selectedEmpenho.licitacaoModalidade || '-'}</span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-slate-800">Nº do Procedimento Licitatório:</span>
+          <span className="text-sm text-[#0097B2]">{selectedEmpenho.procedimentoLicitatorio || '-'}</span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-slate-800">Processo Administrativo:</span>
+          <span className="text-sm text-[#0097B2]">{selectedEmpenho.processo || '-'}</span>
+        </div>
+      </div>
+    </Accordion>
+
+    {/* Bloco 2: Dados do Orçamento (Layout Inline em 2 colunas) */}
+    <Accordion title="DADOS DO ORÇAMENTO" defaultExpanded={true}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-16 gap-y-10">
+        
+        {/* Coluna 1: Classificação Orçamentária */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+            Classificação Orçamentária
+          </h4>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Unidade Orçamentária:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.unidade || '-'}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Função:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.funcao || selectedEmpenho.funcao || '-'}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Subfunção:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.subfuncao || '-'}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Programa:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.programa || '-'}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Ação / Projeto Atividade:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.projetoAtividade || '-'}</span>
+          </div>
+        </div>
+
+        {/* Coluna 2: Classificação por Natureza da Despesa */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+            Classificação por Natureza da Despesa
+          </h4>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Categoria Econômica:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.categoria || '-'}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Grupo de Natureza da Despesa:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.gnd || '-'}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Modalidade de Aplicação:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.modalidade || '-'}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Elemento de Despesa:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.itemDespesa || '-'}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-slate-800">Fonte de recursos:</span>
+            <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.fonte || '-'}</span>
+          </div>
+        </div>
+      </div>
+    </Accordion>
+
+   
+
+{/* Bloco 3: Execução Financeira (Fases da Despesa Consolidadas) */}
+    <Accordion title="Execução Financeira" defaultExpanded={true}>
+      <div className="space-y-10">
+        
+        {/* Sub-bloco: Empenhos */}
+        {selectedEmpenho.empenhos && selectedEmpenho.empenhos.length > 0 && (
+          <div>
+            <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+              Empenhos
+            </h4>
+            <div className="overflow-hidden">
+              {renderTabelaFase(null, selectedEmpenho.empenhos, 'mb-0')}
             </div>
+          </div>
+        )}
 
-            {/* Accordions de Detalhamento */}
-            <Accordion title="Dados Detalhados do Empenho" defaultExpanded={false}>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Nº do Empenho</p>
-                  <p className="text-sm text-[#0097B2] font-medium">{selectedEmpenho.id}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Data de Emissão</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.data}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Valor</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.valor}</p>
-                </div>
-              </div>
+        {/* Sub-bloco: Liquidações */}
+        {selectedEmpenho.liquidacoes && selectedEmpenho.liquidacoes.length > 0 && (
+          <div>
+            <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+              Liquidações
+            </h4>
+            <div className="overflow-hidden">
+              {renderTabelaFase(null, selectedEmpenho.liquidacoes, 'mb-0')}
+            </div>
+          </div>
+        )}
 
-              <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 border-b pb-2">Detalhes Orçamentários</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-6 gap-x-4 mb-8">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Unidade Orçamentária</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.unidade || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Área de Atuação (Função)</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.funcao || selectedEmpenho.funcao}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Subfunção</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.subfuncao || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Programa</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.programa || '-'}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Ação / Projeto Atividade</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.projetoAtividade || '-'}</p>
-                </div>
+        {/* Sub-bloco: Pagamentos */}
+        {selectedEmpenho.pagamentos && selectedEmpenho.pagamentos.length > 0 && (
+          <div>
+            <h4 className="text-xs font-bold text-[#007B9E] uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+              Pagamentos
+            </h4>
+            <div className="overflow-hidden">
+              {renderTabelaFase(null, selectedEmpenho.pagamentos, 'mb-0')}
+            </div>
+          </div>
+        )}
 
-                <div className="col-span-full border-t border-slate-100 pt-4 mt-2"></div>
-
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Categoria</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.categoria || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Grupo de Natureza da Despesa (GND)</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.gnd || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Modalidade</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.modalidade || '-'}</p>
-                </div>
-                <div className="lg:col-span-2">
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Elemento</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.elemento || '-'}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Item de Despesa</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.programatica?.itemDespesa || '-'}</p>
-                </div>
-              </div>
-
-              <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 border-b pb-2">Detalhes Licitação / Contrato</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* [D3] Licitação separada em dois campos distintos */}
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Modalidade da Licitação</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.licitacaoModalidade || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Nº do Procedimento Licitatório</p>
-                  {selectedEmpenho.procedimentoLicitatorio ? (
-                    <a href="#" className="text-sm text-[#0097B2] hover:text-[#007B9E] hover:underline transition-colors" title="Acessar Contrato Vigente">
-                      {selectedEmpenho.procedimentoLicitatorio}
-                    </a>
-                  ) : (
-                    <p className="text-sm text-slate-400">—</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Processo SEI</p>
-                  <a href="#" className="text-sm text-[#0097B2] hover:text-[#007B9E] hover:underline transition-colors">
-                    {selectedEmpenho.processo || '-'}
-                  </a>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Histórico / Objeto</p>
-                  <p className="text-sm text-slate-600 leading-relaxed">{selectedEmpenho.objeto}</p>
-                </div>
-              </div>
-            </Accordion>
-
-            <Accordion title="Dados do Favorecido" defaultExpanded={false}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">CPF/CNPJ</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.cpfCnpj}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Nome do Favorecido</p>
-                  <p className="text-sm text-slate-600">{selectedEmpenho.credor}</p>
-                </div>
-              </div>
-            </Accordion>
-
-            {/* Tabela de Empenhos Relacionados */}
-            {selectedEmpenho.empenhos && selectedEmpenho.empenhos.length > 0 && (
-              <Accordion title="Empenhos Relacionados" defaultExpanded={true}>
-                <div className="overflow-hidden">
-                  {renderTabelaFase(null, selectedEmpenho.empenhos, 'mb-0')}
-                </div>
-              </Accordion>
-            )}
-
-            {/* Fases Relacionadas (Liquidações) */}
-            {selectedEmpenho.liquidacoes.length > 0 && (
-              <Accordion title="Liquidações Relacionadas" defaultExpanded={true}>
-                <div className="overflow-hidden">
-                  {renderTabelaFase(null, selectedEmpenho.liquidacoes, 'mb-0')}
-                </div>
-              </Accordion>
-            )}
-
-            {/* Fases Relacionadas (Pagamentos) */}
-            {selectedEmpenho.pagamentos.length > 0 && (
-              <Accordion title="Pagamentos Relacionados" defaultExpanded={true}>
-                <div className="overflow-hidden">
-                  {renderTabelaFase(null, selectedEmpenho.pagamentos, 'mb-0')}
-                </div>
-              </Accordion>
-            )}
+        {/* Mensagem caso não existam fases (Segurança de Interface) */}
+        {(!selectedEmpenho.empenhos?.length && !selectedEmpenho.liquidacoes?.length && !selectedEmpenho.pagamentos?.length) && (
+          <p className="text-sm text-slate-500 italic text-center py-4">
+            Não existem registros de execução financeira para este documento.
+          </p>
+        )}
+      </div>
+    </Accordion>
+          
 
           </div>
         )}

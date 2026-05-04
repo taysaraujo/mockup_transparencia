@@ -322,7 +322,6 @@ export default function App() {
     // MOTOR DE BUSCA TURBINADO:
     const termo = palavraChaveText.toLowerCase();
     
-    // 1. Função que varre qualquer array de sub-itens (liquidações, pagamentos, etc)
     const buscaNasFases = (fases) => {
       if (!fases) return false;
       return fases.some(f => 
@@ -333,7 +332,6 @@ export default function App() {
       );
     };
 
-    // 2. Compara com os dados do nó principal e também dentro das gavetas
     const matchPalavraChave = termo === '' || [
       emp.id,
       emp.objeto,
@@ -517,15 +515,15 @@ export default function App() {
   };
 
   const FilterInput = ({ label, type = "text", placeholder, options, value, onChange }) => (
-    <div className="relative border border-slate-300 rounded pt-3 pb-2 px-3 bg-white focus-within:border-[#0097B2] focus-within:ring-1 focus-within:ring-[#0097B2] transition-colors">
-      <label className="absolute -top-2.5 left-2 bg-white px-1 text-xs text-slate-500 z-10">
+    <div className="relative border border-slate-300 rounded px-3 bg-white focus-within:border-[#0097B2] focus-within:ring-1 focus-within:ring-[#0097B2] transition-colors h-[36px] flex items-center">
+      <label className="absolute -top-2 left-2 bg-white px-1 text-[10px] text-slate-500 z-10 font-medium">
         {label}
       </label>
       {type === "select" ? (
         <select
           value={value}
           onChange={onChange}
-          className="w-full text-sm text-slate-700 bg-transparent outline-none appearance-none cursor-pointer"
+          className="w-full text-sm text-slate-700 bg-transparent outline-none appearance-none cursor-pointer mt-0.5"
         >
           {options.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
         </select>
@@ -535,7 +533,7 @@ export default function App() {
           placeholder={placeholder}
           value={value}
           onChange={onChange}
-          className="w-full text-sm text-slate-700 bg-transparent outline-none placeholder-slate-400"
+          className="w-full text-sm text-slate-700 bg-transparent outline-none placeholder-slate-400 mt-0.5"
         />
       )}
     </div>
@@ -890,8 +888,9 @@ export default function App() {
               <div className="w-full lg:w-4/5 space-y-6">
                 {/* Barra de Filtros Horizontal */}
                 <div className="bg-white p-4 rounded border border-slate-200 shadow-sm mb-6">
-                  <div className="flex items-center gap-2 mb-3 text-[#007B9E] font-bold text-xs uppercase tracking-wider">
-                    <Filter size={14} /> Filtros de Pesquisa
+                  {/* TEXTO ATUALIZADO SEM O ÍCONE */}
+                  <div className="mb-3 text-[#007B9E] font-bold text-xs uppercase tracking-wider">
+                    Filtros de Pesquisa
                   </div>
                   <div className="flex flex-col lg:flex-row items-end gap-4">
                     {isStandardYear && (
@@ -899,9 +898,10 @@ export default function App() {
                         <FilterInput label="Ano" type="select" options={["2026", "2025", "2024", "2023", "2022"]} value={anoFilter} onChange={handleAnoChange} />
                       </div>
                     )}
-                    <div className="w-full lg:w-64 flex-shrink-0 relative border border-slate-300 rounded pt-3 pb-2 px-2 bg-white focus-within:border-[#0097B2] focus-within:ring-1 focus-within:ring-[#0097B2] transition-colors">
-                      <label className="absolute -top-2.5 left-2 bg-white px-1 text-[10px] text-slate-500 font-medium">Período (DD/MM/AAAA)</label>
-                      <div className="flex items-center gap-1">
+
+                    <div className="w-full lg:w-64 flex-shrink-0 relative border border-slate-300 rounded px-2 bg-white focus-within:border-[#0097B2] focus-within:ring-1 focus-within:ring-[#0097B2] transition-colors h-[36px] flex items-center">
+                      <label className="absolute -top-2 left-2 bg-white px-1 text-[10px] text-slate-500 font-medium">Período (DD/MM/AAAA)</label>
+                      <div className="flex items-center gap-1 w-full mt-0.5">
                         <div className="relative w-full flex items-center">
                           <span className="absolute left-0 pointer-events-none text-xs text-slate-700">
                             {dataInicio ? dataInicio.split('-').reverse().join('/') : ''}
@@ -927,6 +927,7 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+
                     <div className="w-full flex-grow">
                       <FilterInput 
                         label="Palavra-Chave do Empenho" 
@@ -935,11 +936,12 @@ export default function App() {
                         onChange={e => setPalavraChaveText(e.target.value)} 
                       />
                     </div>
+                    
                     <div className="w-full lg:w-auto flex justify-end gap-2 flex-shrink-0">
-                      <button onClick={handleLimparFiltros} className="flex items-center justify-center gap-2 px-4 py-[9px] text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-300 rounded transition-colors shadow-sm">
+                      <button onClick={handleLimparFiltros} className="flex items-center justify-center gap-2 px-4 h-[36px] text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-300 rounded transition-colors shadow-sm">
                         <X size={14} /> Limpar
                       </button>
-                      <button onClick={() => showToast('Pesquisa atualizada!')} className="flex items-center justify-center gap-2 bg-[#0097B2] hover:bg-[#007B9E] text-white px-5 py-[9px] rounded text-xs font-bold transition-colors shadow-sm border border-transparent">
+                      <button onClick={() => showToast('Pesquisa atualizada!')} className="flex items-center justify-center gap-2 bg-[#0097B2] hover:bg-[#007B9E] text-white px-5 h-[36px] rounded text-xs font-bold transition-colors shadow-sm border border-transparent">
                         <Search size={14} /> Aplicar Filtro
                       </button>
                     </div>
@@ -978,7 +980,7 @@ export default function App() {
                 <div className="mt-8">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 px-1 gap-2">
                     <h3 className="text-sm font-semibold text-[#007B9E] uppercase tracking-wider flex items-center gap-2">
-                      Classificação da Unidade Orçamentária
+                      Unidade Orçamentária
                     </h3>
                     <div className="flex gap-2">
                       <button 

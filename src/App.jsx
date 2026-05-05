@@ -609,8 +609,8 @@ export default function App() {
       [`Período: ${dataInicio.split('-').reverse().join('/')} a ${dataFim.split('-').reverse().join('/')} | Ano: ${anoFilter}`],
       [`Filtros Ativos: UO: ${ugLabel} | Classificação: ${classLabel} | Busca: ${palavraChaveLabel}`],
       [],
-      ["RESUMO POR UNIDADE ORÇAMENTÁRIA"],
-      ["Código", "Unidade Orçamentária", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"],
+      ["RESUMO POR UNIDADE GESTORA"],
+      ["Código", "Unidade Gestora", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"],
       ...Object.keys(totaisPorUG).filter(ug => ug !== 'Todas').map(ug => [
         ug, ug === '30101' ? 'TRIBUNAL DE CONTAS' : 'FUNDO ESP DE DESENV MODERN E APERF DO TC MS', 
         exportParseCurrency(totaisPorUG[ug].empenhado), exportParseCurrency(totaisPorUG[ug].liquidado), exportParseCurrency(totaisPorUG[ug].pago)
@@ -718,7 +718,7 @@ export default function App() {
           doc.setFont(undefined, 'bold');
         }
       },
-      head: [['Código', 'Unidade Orçamentária', 'Empenhado', 'Liquidado', 'Pago']],
+      head: [['Código', 'Unidade Gestora', 'Empenhado', 'Liquidado', 'Pago']],
       body: ugsData,
     });
 
@@ -888,7 +888,6 @@ export default function App() {
               <div className="w-full lg:w-4/5 space-y-6">
                 {/* Barra de Filtros Horizontal */}
                 <div className="bg-white p-4 rounded border border-slate-200 shadow-sm mb-6">
-                  {/* TEXTO ATUALIZADO SEM O ÍCONE */}
                   <div className="mb-3 text-[#007B9E] font-bold text-xs uppercase tracking-wider">
                     Filtros de Pesquisa
                   </div>
@@ -980,7 +979,7 @@ export default function App() {
                 <div className="mt-8">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 px-1 gap-2">
                     <h3 className="text-sm font-semibold text-[#007B9E] uppercase tracking-wider flex items-center gap-2">
-                      Unidade Orçamentária
+                      Unidade Gestora
                     </h3>
                     <div className="flex gap-2">
                       <button 
@@ -1352,7 +1351,7 @@ export default function App() {
                     Classificação Orçamentária
                   </h4>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-semibold text-slate-800">Unidade Orçamentária:</span>
+                    <span className="text-sm font-semibold text-slate-800">Unidade Gestora:</span>
                     <span className="text-sm text-slate-600">{selectedEmpenho.programatica?.unidade || '-'}</span>
                   </div>
                   <div className="flex items-baseline gap-2">
